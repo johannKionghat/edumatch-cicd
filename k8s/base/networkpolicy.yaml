@@ -1,0 +1,55 @@
+# Cloisonnement réseau entre pods (critère 2.7), au sein du cluster — le
+# réseau privé Scaleway (terraform/main.tf) cloisonne déjà le cluster de
+# l'extérieur ; ceci cloisonne l'intérieur. Politique "par défaut fermé" :
+# seules les entrées explicitement listées ci-dessous sont autorisées, tout
+# le reste est refusé.
+#
+# Non vérifié dans cette session : que le CNI Cilium (choisi dans
+# terraform/main.tf) applique bien les `NetworkPolicy` standard sans
+# configuration additionnelle — c'est son comportement documenté par
+# défaut, mais je n'ai pas de cluster pour l'observer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: edumatch-serve
+  namespace: edumatch
+spec:
+  podSelector:
+    matchLabels:
+      app: edumatch-serve
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # N'accepte du trafic que depuis l'intérieur du cluster (le Service,
+    # atteint par `kubectl port-forward` ou par un futur Ingress interne) —
+    # aucun `LoadBalancer` n'existe (voir service.yaml), donc aucune entrée
+    # publique à autoriser ici aujourd'hui.
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8000
+
+  egress:
+    # Résolution DNS : sans cette règle explicite, une politique "par défaut
+    # fermé" casserait jusqu'au nom du bucket Object Storage lui-même.
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # HTTPS sortant : nécessaire à la fois au conteneur d'initialisation
+    # (récupération des artefacts sur Object Storage) et, optionnellement,
+    # à l'API elle-même (assistant RAG, E32, s'il appelle l'API Mistral —
+    # voir MISTRAL_API_KEY dans deployment.yaml). Restreint au port 443
+    # plutôt qu'à "tout port sortant", mais pas à des adresses IP précises :
+    # Object Storage et l'API Mistral n'ont pas d'adresse IP stable
+    # documentée à figer ici sans risquer de casser la synchronisation au
+    # premier changement d'infrastructure côté fournisseur.
+    - ports:
+        - protocol: TCP
+          port: 443

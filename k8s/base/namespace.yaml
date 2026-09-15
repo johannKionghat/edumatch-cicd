@@ -1,0 +1,12 @@
+# Espace de noms dédié : cloisonne les objets edumatch de tout ce qu'un
+# futur second projet pourrait déployer sur le même cluster de démonstration
+# (critère 2.7, cloisonnement). Un cluster à un seul namespace `default`
+# mélangerait des Secret, ConfigMap et NetworkPolicy sans frontière claire —
+# ici sans conséquence pratique tant qu'un seul projet existe, mais gratuit à
+# poser dès maintenant.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edumatch
+  labels:
+    app.kubernetes.io/part-of: edumatch

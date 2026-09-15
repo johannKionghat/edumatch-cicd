@@ -1,0 +1,29 @@
+# Adresse stable pour les pods edumatch-serve, quel que soit leur nombre ou
+# leur identité (E37, critère 2.6). `ClusterIP` (la valeur par défaut,
+# explicitée ici) plutôt qu'un `LoadBalancer` : un `LoadBalancer` Scaleway
+# provisionne une ressource facturée en continu tant qu'elle existe, pour un
+# besoin qui ne se présente que pendant une démonstration filmée de quelques
+# minutes. `kubectl port-forward` (voir README) atteint ce Service depuis un
+# poste local sans aucune ressource supplémentaire à créer ni détruire.
+#
+# Alternative écartée : un `Ingress` avec contrôleur NGINX et certificat TLS
+# (cert-manager) — pertinent pour une exposition publique durable avec un nom
+# de domaine, aucun des deux n'existant pour ce projet de démonstration. Le
+# seuil qui ferait reconsidérer ce choix : une démonstration publique en
+# continu (pas seulement filmée une fois), qui justifierait le coût d'un
+# `LoadBalancer` ou d'un `Ingress` face au confort d'un accès permanent.
+apiVersion: v1
+kind: Service
+metadata:
+  name: edumatch-serve
+  namespace: edumatch
+  labels:
+    app: edumatch-serve
+spec:
+  type: ClusterIP
+  selector:
+    app: edumatch-serve
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -1,0 +1,252 @@
+# Déploiement de l'API de matching (E29 côté edumatch-ia), en réplicas
+# identiques et interchangeables — aucun état local, voir le docstring de
+# docker/Dockerfile.serve. L'image est référencée par le jeton
+# __EDUMATCH_SERVE_IMAGE__, substitué par deploy.yml avant application (voir
+# k8s/README.md) — jamais `latest` : la valeur substituée est toujours
+# `<registre>/edumatch-serve:<empreinte-courte-du-commit>`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edumatch-serve
+  namespace: edumatch
+  labels:
+    app: edumatch-serve
+spec:
+  # Réplica de départ modeste : le HorizontalPodAutoscaler (hpa.yaml) prend
+  # le relais dès que la charge le justifie. 2, pas 1, dès le départ : avec
+  # un seul réplica, un rolling update ou un redémarrage de nœud laisse une
+  # fenêtre sans aucun pod prêt — inacceptable même pour une démonstration
+  # qui doit rester joignable pendant qu'elle est filmée.
+  replicas: 2
+  revisionHistoryLimit: 3 # de quoi revenir en arrière de quelques versions sans accumuler indéfiniment d'anciens ReplicaSet
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0 # jamais moins de `replicas` pods prêts pendant une mise à jour
+      maxSurge: 1 # un pod de plus le temps de la bascule, pas davantage sur un pool à 2 nœuds
+  selector:
+    matchLabels:
+      app: edumatch-serve
+  template:
+    metadata:
+      labels:
+        app: edumatch-serve
+    spec:
+      serviceAccountName: edumatch-serve
+      automountServiceAccountToken: false
+
+      # Aucune raison qu'un pod applicatif tire depuis un registre public :
+      # le registre Scaleway (terraform/main.tf) est privé, donc un secret
+      # `docker-registry` est nécessaire pour l'extraction elle-même — créé
+      # à la main avant le premier déploiement (voir le README à la racine
+      # du dépôt, jamais dans ce fichier versionné).
+      imagePullSecrets:
+        - name: edumatch-registry-pull
+
+      # Contraintes de sécurité au niveau du pod : s'appliquent aux deux
+      # conteneurs (init et principal) sauf override explicite plus bas.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001 # même uid que docker/Dockerfile.serve (edumatch-ia) : la cohérence entre l'image et le manifeste évite un `securityContext` qui contredirait ce que l'image a déjà choisi
+        runAsGroup: 10001
+        fsGroup: 10001 # les volumes emptyDir ci-dessous appartiennent à ce groupe, lisibles/écrivables par le conteneur sans étape `chown` supplémentaire
+        seccompProfile:
+          type: RuntimeDefault
+
+      initContainers:
+        # Récupère les deux artefacts précalculés (catalogue de prédictions,
+        # précalcul SHAP — voir edumatch-ia/src/edumatch/api/state.py) depuis
+        # le bucket Object Storage vers un volume partagé avec le conteneur
+        # principal. Alternative écartée : entraîner au démarrage du pod —
+        # `state.py` le permet déjà en repli, mais un entraînement complet
+        # au démarrage de CHAQUE réplica (et à chaque redémarrage déclenché
+        # par le HPA) est exactement la dette que ce mécanisme documente
+        # comme non souhaitable en production.
+        #
+        # Image et version non vérifiées dans cette session (pas de registre
+        # interrogeable ici) : à reconfirmer avant le premier déploiement
+        # réel — un seul endroit à corriger si le tag n'existe pas.
+        - name: recuperer-artefacts
+          image: amazon/aws-cli:2.17.62
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              aws --endpoint-url "$SCW_S3_ENDPOINT" s3 sync \
+                "s3://$SCW_ARTEFACTS_BUCKET/matching" /app/data/processed/matching
+              aws --endpoint-url "$SCW_S3_ENDPOINT" s3 sync \
+                "s3://$SCW_ARTEFACTS_BUCKET/explicabilite" /app/data/processed/explicabilite
+          envFrom:
+            - configMapRef:
+                name: edumatch-serve-config
+          env:
+            # Scaleway Object Storage accepte les mêmes clés API que le
+            # reste de la console, présentées ici sous les noms attendus par
+            # aws-cli (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) — voir
+            # k8s/secret.example.yaml pour la correspondance exacte.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: edumatch-object-storage
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: edumatch-object-storage
+                  key: secret-access-key
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          # Sans `requests`, l'ordonnanceur placerait ce conteneur sans
+          # connaître son besoin réel et pourrait le co-localiser avec des
+          # pods qui saturent déjà le nœud ; sans `limits`, une
+          # synchronisation anormalement longue ou volumineuse pourrait
+          # affamer le conteneur principal qui démarre en même temps sur le
+          # même pod. Valeurs prudentes, non mesurées sous charge réelle
+          # (transfert de quelques dizaines à ~100 Mo, quelques secondes
+          # attendues) : à ajuster avec `kubectl top pod` après le premier
+          # déploiement si le démarrage est plus lent que prévu.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+      containers:
+        - name: edumatch-serve
+          image: __EDUMATCH_SERVE_IMAGE__
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: edumatch-serve-config
+          env:
+            # Optionnelle : la brique RAG (E32) ne se charge qu'à la
+            # première requête POST /assistant si cette variable est
+            # renseignée (voir edumatch-ia, rag/generation.py) ; son absence
+            # ne fait pas échouer l'API. `optional: true` évite un
+            # `CreateContainerConfigError` si le secret n'a volontairement
+            # pas été créé (démonstration qui n'active pas l'assistant).
+            - name: MISTRAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: edumatch-mistral
+                  key: api-key
+                  optional: true
+
+          # ─── requests / limits — le critère de cette étape ──────────────
+          # Sans `requests`, l'ordonnanceur Kubernetes place le pod à
+          # l'aveugle : il ne sait pas combien de mémoire ou de CPU réserver
+          # sur le nœud choisi, et peut le co-localiser avec d'autres pods
+          # jusqu'à saturer le nœud. Sans `limits`, ce conteneur pourrait
+          # consommer toute la mémoire ou le CPU disponibles sur le nœud et
+          # affamer ses voisins ; un dépassement de la limite mémoire (pas
+          # de la limite CPU, qui ne fait que ralentir le conteneur) se
+          # termine par un signal OOMKilled — le conteneur est tué, pas
+          # simplement ralenti. `requests == limits` donnerait la classe de
+          # qualité de service "Guaranteed" (jamais expulsé le premier sous
+          # pression mémoire) ; ici les deux diffèrent volontairement, classe
+          # "Burstable" : la charge d'une requête /matching individuelle est
+          # légère (lecture d'un DataFrame déjà en mémoire, pas de calcul
+          # SHAP à la volée — voir api/state.py), donc la moyenne réelle
+          # devrait rester proche de `requests`, avec de la marge (`limits`)
+          # pour un pic de requêtes concurrentes sans expulsion immédiate.
+          #
+          # Valeurs non mesurées sous charge réelle dans cette session (pas
+          # de cluster disponible) : ordre de grandeur posé à partir de
+          # l'empreinte connue d'un processus FastAPI + pandas + LightGBM +
+          # SHAP chargés en mémoire (bibliothèques importées, catalogue de
+          # 77 159 lignes, précalcul SHAP de 440 030 lignes) — à confirmer
+          # avec `kubectl top pod` après le premier déploiement et à ajuster
+          # si la mémoire réelle observée s'écarte de cette estimation.
+          resources:
+            requests:
+              cpu: 200m
+              memory: 320Mi
+            limits:
+              cpu: "1"
+              memory: 640Mi
+
+          # ─── Sondes — liveness et readiness ne répondent pas à la même
+          # question (voir docstring de routes/health.py côté edumatch-ia).
+          #
+          # `startupProbe` couvre le temps de démarrage variable (extraction
+          # de l'image, synchronisation des artefacts par le conteneur
+          # d'initialisation, import des bibliothèques Python) sans que
+          # liveness/readiness ne le comptent contre le pod : tant que le
+          # démarrage n'a pas réussi une fois, les deux autres sondes sont
+          # suspendues.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30 # jusqu'à 150s de démarrage tolérées avant d'être considéré bloqué
+
+          # `liveness` répond à « le processus a-t-il planté ou est-il
+          # bloqué ? » — elle interroge /health, une route volontairement
+          # sans dépendance lourde (voir edumatch-ia). Seuils tolérants :
+          # confondre liveness et readiness provoque des redémarrages en
+          # boucle si les seuils sont trop stricts, exactement ce que le
+          # docstring de health.py met en garde.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # `readiness` répond à « ce pod doit-il recevoir du trafic
+          # maintenant ? » — retire le pod du Service (pas un redémarrage)
+          # le temps qu'il réponde de nouveau. Limite honnête, documentée
+          # plutôt que masquée : /health ne vérifie PAS que l'état lourd
+          # (catalogue de prédictions, précalcul SHAP — api/state.py) a bien
+          # été construit ; `main.py` n'échoue jamais son démarrage sur cet
+          # échec, il fait répondre 503 aux seules routes concernées
+          # (/matching, /explain). Un pod peut donc être "prêt" au sens de
+          # cette sonde sans que /matching réponde encore utilement. Corriger
+          # cela demande une route de disponibilité dédiée côté edumatch-ia
+          # (hors périmètre de ce dépôt, qui ne modifie jamais edumatch-ia) —
+          # à proposer côté API dans une prochaine itération.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            # Volume partagé avec le conteneur d'initialisation : contient
+            # les artefacts précalculés ET les journaux d'audit/feedback que
+            # l'API écrit elle-même en fonctionnement (api/audit.py,
+            # api/feedback_store.py, côté edumatch-ia — append-only, sous
+            # EDUMATCH_DATA_ROOT). C'est la seule exception assumée au
+            # système de fichiers racine en lecture seule ci-dessous : sans
+            # elle, /feedback et l'audit article 12 échoueraient à écrire.
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

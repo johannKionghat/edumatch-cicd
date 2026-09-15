@@ -1,0 +1,26 @@
+# Configuration non sensible uniquement — tout secret (clés Object Storage,
+# clé Mistral) vit dans un objet Secret créé à la main avant le premier
+# déploiement (voir k8s/secret.example.yaml et le README à la racine du
+# dépôt), jamais ici : ce fichier est versionné et lu par n'importe qui a
+# accès au dépôt.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edumatch-serve-config
+  namespace: edumatch
+data:
+  # Sélectionne configs/prod.yaml (surchargeant configs/base.yaml) côté
+  # edumatch-ia — voir src/edumatch/config.py pour la règle de précédence.
+  EDUMATCH_ENV: "prod"
+  # Répertoire de travail monté en volume (voir deployment.yaml) : jamais la
+  # racine du dépôt copiée dans l'image (voir docker/Dockerfile.serve,
+  # edumatch-ia — data/ n'y est jamais copiée).
+  EDUMATCH_DATA_ROOT: "/app/data"
+  # Lus par le conteneur d'initialisation pour récupérer les artefacts
+  # précalculés (catalogue de prédictions, précalcul SHAP) déposés dans le
+  # bucket par `make train` / `make explain` avant une démonstration — voir
+  # terraform/main.tf (ressource `scaleway_object_bucket.artefacts`) pour la
+  # raison d'un bucket plutôt qu'un volume bloc partagé.
+  SCW_ARTEFACTS_BUCKET: "edumatch-artefacts"
+  SCW_S3_ENDPOINT: "https://s3.fr-par.scw.cloud"
+  AWS_DEFAULT_REGION: "fr-par"

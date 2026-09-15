@@ -1,0 +1,68 @@
+# Adaptation automatique du nombre de réplicas à la charge (E37, critère
+# 2.4/2.6) : c'est ce qui matérialise l'argument de saisonnalité du dossier,
+# pas seulement une affirmation. Sans ce fichier, "il y a un rapport de 1 à 6
+# entre le pic de janvier-mai et le creux estival" resterait une phrase de
+# dossier sans preuve dans le dépôt.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: edumatch-serve
+  namespace: edumatch
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: edumatch-serve
+
+  # minReplicas / maxReplicas = 1:6 — repris directement du rapport de
+  # charge mesuré entre le pic de la période de vœux Parcoursup
+  # (janvier-mai) et le creux estival (environ 30 % d'utilisation moyenne en
+  # dimensionnement fixe, voir docs/sous-docs-projets côté edumatch-ia). Le
+  # HPA rend ce rapport agissant plutôt que descriptif : 1 réplica suffit au
+  # creux, jusqu'à 6 absorbent le pic, sans dimensionner en permanence pour
+  # le pic (ce que ferait un `replicas: 6` fixe, gaspillant environ 70 % de
+  # la capacité le reste de l'année).
+  minReplicas: 1
+  maxReplicas: 6
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          # 60 %, pas les 80 % pris par habitude ailleurs : ce service sert
+          # une route au budget de latence serré (SLO déclaré : p95 de
+          # /matching sous 300 ms) depuis un catalogue déjà en mémoire —
+          # l'essentiel du travail par requête est du calcul CPU, pas de
+          # l'attente réseau ou disque. Attendre 80 % d'utilisation avant de
+          # déclencher une extension laisserait trop peu de marge : entre la
+          # décision de créer un pod et le moment où sa sonde `readiness`
+          # le déclare prêt (démarrage + extraction des artefacts, voir
+          # deployment.yaml), plusieurs dizaines de secondes s'écoulent
+          # pendant lesquelles les pods déjà en service absorbent seuls la
+          # charge montante. 60 % réserve cette marge. Seuil non mesuré sous
+          # charge réelle (pas de cluster disponible ici) : à ajuster à la
+          # baisse si la latence p95 se dégrade avant que le HPA ne réagisse
+          # pendant une démonstration, à la hausse si les pods s'étendent
+          # trop tôt pour un trafic qui n'en avait pas besoin.
+          averageUtilization: 60
+
+  behavior:
+    scaleUp:
+      # Réagit vite à une montée de charge : pas de fenêtre de stabilisation
+      # qui retarderait la création de pods pendant un pic.
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      # Redescend prudemment : une fenêtre de 5 minutes évite un pod détruit
+      # puis recréé quelques secondes plus tard sur un trafic qui fluctue
+      # normalement (l'oscillation, un travers classique des HPA mal réglés).
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
