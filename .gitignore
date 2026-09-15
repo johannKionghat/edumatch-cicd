@@ -1,0 +1,31 @@
+# ─── Secrets — jamais versionnés ────────────────────────────────────
+.env
+*.env
+!.env.example
+*.pem
+*.key
+kubeconfig
+kubeconfig.yaml
+*kubeconfig*
+credentials*.json
+*.tfvars
+!*.tfvars.example
+
+# ─── Terraform ──────────────────────────────────────────────────────
+# .terraform.lock.hcl N'EST PAS ignoré : il épingle la version et l'empreinte
+# exacte du provider Scaleway. C'est lui qui rend l'environnement
+# reproductible — un `terraform init` sur un autre poste sans ce fichier
+# pourrait résoudre un provider plus récent et se comporter différemment sans
+# qu'aucune ligne de code n'ait changé.
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfplan
+
+# ─── Système ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Éditeurs ───────────────────────────────────────────────────────
+.vscode/
+.idea/
