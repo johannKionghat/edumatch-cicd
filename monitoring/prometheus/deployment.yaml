@@ -1,0 +1,112 @@
+# Prometheus lui-même : un seul réplica, un seul processus TSDB — inutile
+# d'en faire tourner deux pour une démonstration (Prometheus haute
+# disponibilité duplique la collecte, pas la lit en parallèle ; le gain n'a
+# de sens que si l'indisponibilité de quelques minutes de la surveillance
+# elle-même est inacceptable, ce qui n'est pas le cas ici).
+#
+# Rétention courte (6h, `--storage.tsdb.retention.time`) sur un `emptyDir` :
+# pas de volume persistant. Alternative écartée : un PersistentVolumeClaim
+# Scaleway Block Storage — coûterait une ressource facturée en continu pour
+# un cluster qui n'existe lui-même que pendant les démonstrations (règle de
+# coût). Conséquence assumée : l'historique des métriques disparaît à
+# chaque redémarrage du pod Prometheus, ou à la destruction du cluster —
+# acceptable pour observer un incident PENDANT une démonstration filmée
+# (E39), pas pour une analyse de tendance sur plusieurs semaines.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534 # utilisateur "nobody" de l'image officielle prom/prometheus
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: prometheus
+          # Tag non vérifié contre Docker Hub dans cette session (pas de
+          # connexion réseau sortante vérifiable ici) — même limite déjà
+          # signalée pour amazon/aws-cli dans k8s/README.md, à reconfirmer
+          # avant le premier déploiement réel.
+          image: prom/prometheus:v2.54.1
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=6h
+            - --web.enable-lifecycle # permet un rechargement à chaud (`POST /-/reload`) après édition d'une règle, sans redémarrer le pod
+          ports:
+            - name: http
+              containerPort: 9090
+          resources:
+            # Non mesuré sous charge réelle (pas de cluster disponible dans
+            # cette session) : ordre de grandeur pour un seul job scrapé
+            # (edumatch-serve, jusqu'à 6 cibles) sur une rétention de 6h.
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: rules
+              mountPath: /etc/prometheus/rules
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: rules
+          configMap:
+            name: prometheus-rules
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http

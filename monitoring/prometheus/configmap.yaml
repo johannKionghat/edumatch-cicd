@@ -1,0 +1,62 @@
+# Configuration de collecte. Choix assumé : ni l'opérateur Prometheus ni
+# kube-prometheus-stack (Helm) — voir monitoring/README.md, section
+# "Le mode de déploiement retenu, et pourquoi" pour l'arbitrage complet et
+# son coût comparé.
+#
+# Découverte par `role: endpoints`, pas `role: pod` : cible directement les
+# adresses membres du Service `edumatch-serve` (k8s/base/service.yaml), qui
+# ne contient QUE les pods ayant passé leur sonde `readiness` — un pod pas
+# encore prêt n'apparaît jamais comme cible, jamais besoin d'un filtre
+# supplémentaire sur l'état du pod. Aucune annotation `prometheus.io/scrape`
+# à ajouter sur le Deployment (k8s/base/deployment.yaml, jamais modifié
+# depuis ce dossier) : le filtre se fait ici, sur le label du Service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: edumatch-demo
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager.monitoring.svc.cluster.local:9093"]
+
+    rule_files:
+      - /etc/prometheus/rules/*.yaml
+
+    scrape_configs:
+      # L'API edumatch-serve, via les points de terminaison du Service dans
+      # le namespace `edumatch`. `up{job="edumatch-serve"}` : une série par
+      # pod prêt — c'est ce que les alertes de capacité (alerts.yaml) et le
+      # panneau "réplicas" du tableau de bord Grafana comptent, sans dépendre
+      # de kube-state-metrics (écarté, voir README).
+      - job_name: edumatch-serve
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: ["edumatch"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            regex: edumatch-serve
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: http
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+
+      # Prometheus se surveille lui-même (utile pour vérifier que les règles
+      # se chargent sans erreur : métrique `prometheus_rule_group_rules`).
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]

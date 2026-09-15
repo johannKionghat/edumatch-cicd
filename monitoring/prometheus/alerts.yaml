@@ -1,0 +1,118 @@
+# Règles d'alerte — le critère de cette étape (E38) est qu'elles soient
+# ACTIONNABLES : chaque alerte porte ce qui se passe, pourquoi c'est grave,
+# et quoi faire (champ `action`, lu par la personne d'astreinte, pas
+# seulement par un tableau de bord). Cinq alertes, pas davantage : une
+# alerte de plus qui ne changerait rien à la conduite à tenir serait du
+# bruit, et le bruit est ce qui fait ignorer les alertes utiles.
+#
+# Volontairement absente ici : une alerte de dérive du modèle (PSI, seuil
+# 0,20 — voir edumatch-ia, ADR 0018). Le calcul du PSI n'est pas encore
+# exposé en métrique Prometheus : il tourne aujourd'hui comme un rapport
+# batch (`make derive`, côté edumatch-ia), pas comme un processus qui
+# expose un point `/metrics` interrogeable en continu. L'ajouter ici
+# maintenant produirait une règle qui ne se déclenche jamais, faute de
+# métrique — l'inverse d'une alerte actionnable. Cette alerte rejoint ce
+# fichier le jour où le DAG Airflow de réentraînement (E33) pousse son
+# résultat vers un Pushgateway ou expose lui-même `/metrics` sur le
+# cluster ; jusque-là, le seuil reste appliqué et documenté côté
+# edumatch-ia, pas simulé ici.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  edumatch-serve.yaml: |
+    groups:
+      - name: edumatch-serve.symptomes
+        rules:
+          - alert: EdumatchLatenceP95Elevee
+            expr: |
+              histogram_quantile(0.95,
+                sum(rate(http_request_duration_seconds_bucket{job="edumatch-serve", handler="/matching"}[5m])) by (le)
+              ) > 0.3
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "p95 de /matching au-dessus du SLO (300 ms)"
+              description: >-
+                Le p95 de latence de /matching dépasse 300 ms depuis 5 minutes. C'est le SLO
+                déclaré (monitoring/slo.md) : le budget d'erreur de latence se consomme.
+              action: >-
+                1) `kubectl get hpa -n edumatch` : si les réplicas sont au plafond (6), c'est un
+                problème de capacité, pas un incident isolé — voir EdumatchHpaPlafondAtteintDurablement.
+                2) `kubectl top pod -n edumatch` : écarter une contention CPU/mémoire sur un pod isolé.
+                3) Sinon, suspecter une requête à catalogue anormalement large (voir
+                max_formations_evaluees, configs/base.yaml côté edumatch-ia) plutôt qu'un défaut
+                généralisé.
+
+          - alert: EdumatchTauxErreur5xxEleve
+            expr: |
+              sum(rate(http_requests_total{job="edumatch-serve", status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{job="edumatch-serve"}[5m]))
+              > 0.05
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Plus de 5 % des requêtes en erreur serveur (5xx)"
+              description: "Taux d'erreur 5xx sur les 5 dernières minutes au-dessus du seuil actionnable."
+              action: >-
+                1) `kubectl logs -n edumatch -l app=edumatch-serve --tail=200` : identifier l'exception.
+                2) Si l'erreur suit un déploiement récent : `kubectl rollout undo deployment/edumatch-serve
+                -n edumatch` — le retour arrière est vérifié possible avant chaque déploiement (voir
+                k8s/README.md). 3) Si seules /matching ou /explain sont touchées et pas /health :
+                suspecter un artefact manquant plutôt qu'un défaut de code (api/state.py répond 503 sur
+                ces deux routes sans faire échouer tout le pod).
+
+          - alert: EdumatchAucunReplicaDisponible
+            expr: count(up{job="edumatch-serve"} == 1) == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Aucun pod edumatch-serve ne répond"
+              description: "Zéro cible scrappable sur le job edumatch-serve depuis 2 minutes : service indisponible."
+              action: >-
+                1) `kubectl get pods -n edumatch` : CrashLoopBackOff, ImagePullBackOff, Pending ?
+                2) `kubectl describe deployment edumatch-serve -n edumatch` : événements récents.
+                3) Retour arrière immédiat si un déploiement vient de se produire :
+                `kubectl rollout undo deployment/edumatch-serve -n edumatch`.
+
+          - alert: EdumatchHpaPlafondAtteintDurablement
+            expr: count(up{job="edumatch-serve"} == 1) >= 6
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Le HPA est au plafond (6 réplicas) depuis plus de 15 minutes"
+              description: >-
+                Le nombre de pods prêts égale maxReplicas (hpa.yaml) depuis 15 minutes : la capacité du
+                pool de nœuds (pool_taille_max=2, terraform/variables.tf) est probablement le facteur
+                limitant, pas seulement un pic absorbé normalement.
+              action: >-
+                1) Croiser avec EdumatchLatenceP95Elevee : si elle se dégrade aussi, c'est un vrai
+                manque de capacité. 2) Augmenter `pool_taille_max` (terraform/variables.tf), `terraform
+                plan` PUIS lecture du plan PUIS `apply` — un second nœud DEV1-M coûte environ
+                0,0202 EUR/heure tant qu'il tourne. 3) Si récurrent à chaque démonstration : revoir
+                `maxReplicas` (hpa.yaml) et le dimensionnement du pool ensemble.
+
+          - alert: EdumatchInstrumentationAbsente
+            expr: absent(up{job="edumatch-serve"})
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Aucune métrique reçue depuis l'API depuis 10 minutes"
+              description: >-
+                Le job edumatch-serve n'a produit aucune cible depuis 10 minutes : soit l'API n'expose
+                pas /metrics (instrumentation non ajoutée, voir monitoring/README.md §1), soit le
+                Service ou la NetworkPolicy empêchent Prometheus de l'atteindre.
+              action: >-
+                1) `kubectl get endpoints edumatch-serve -n edumatch` : le Service a-t-il des adresses ?
+                2) `kubectl run -it --rm debug --image=curlimages/curl:8.9.1 -n monitoring --
+                curl -s http://edumatch-serve.edumatch.svc.cluster.local/metrics` : la route répond-elle
+                depuis l'intérieur du cluster ? 3) Si la route n'existe pas côté API : ajouter
+                l'instrumentation décrite au §1 de monitoring/README.md, reconstruire l'image, redéployer.

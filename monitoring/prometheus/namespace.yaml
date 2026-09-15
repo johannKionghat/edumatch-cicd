@@ -1,0 +1,11 @@
+# Espace de noms dédié à la chaîne de surveillance (E38), distinct de `edumatch`
+# (k8s/base/namespace.yaml) : Prometheus, Alertmanager et Grafana ne sont pas
+# l'application, et un cloisonnement par espace de noms évite qu'un
+# `kubectl delete namespace edumatch` (voir README racine, section "Détruire")
+# n'emporte le monitoring avec lui, ou inversement.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: edumatch

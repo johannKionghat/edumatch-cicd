@@ -1,0 +1,40 @@
+# Routage minimal, sans destinataire externe : aucun webhook Slack ni
+# adresse e-mail n'existe pour ce projet de certification (personne
+# d'astreinte à prévenir 24/7). Les alertes restent visibles dans l'IHM
+# Alertmanager (http://localhost:9093 via port-forward, voir README) et
+# dans Grafana — suffisant pour la démonstration et pour la preuve du
+# critère (alertes actionnables, pas nécessairement notifiées par courriel).
+#
+# Pour brancher un vrai récepteur plus tard (ex. Slack) sans redéployer
+# l'image : ajouter un `receiver` avec `slack_configs`, et l'URL de webhook
+# dans un Secret Kubernetes monté en variable d'environnement substituée ici
+# via `envsubst` au démarrage, ou un second ConfigMap — jamais l'URL en dur
+# dans ce fichier versionné.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    route:
+      receiver: "sans-notification"
+      group_by: ["alertname"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: "sans-notification"
+          repeat_interval: 1h # une critique se répète plus souvent qu'une simple alerte de veille
+
+    receivers:
+      - name: "sans-notification"
+        # Récepteur "null" explicite : aucune intégration configurée. Une alerte reçue ici
+        # reste visible dans l'IHM Alertmanager et dans Grafana, elle n'est simplement notifiée
+        # nulle part — assumé et documenté plutôt que masqué par un faux webhook qui échouerait
+        # silencieusement.

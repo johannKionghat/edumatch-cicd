@@ -1,0 +1,25 @@
+# Déclare où Grafana va chercher les tableaux de bord au démarrage : le
+# dossier où le ConfigMap `grafana-dashboard-edumatch` est monté
+# (deployment.yaml). Le JSON du tableau de bord lui-même
+# (dashboards/edumatch-api.json) n'est PAS recopié dans ce fichier : il est
+# chargé tel quel dans son propre ConfigMap via `kubectl create configmap
+# --from-file`, pour éviter de dupliquer un JSON de plusieurs centaines de
+# lignes dans un fichier YAML où l'échappement serait fragile — voir README,
+# section "Déployer".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: edumatch
+        orgId: 1
+        folder: "EduMatch-IA"
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards/edumatch

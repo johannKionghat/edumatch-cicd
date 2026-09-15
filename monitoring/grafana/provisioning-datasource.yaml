@@ -1,0 +1,19 @@
+# Provisioning déclaratif de la source de données (pas de clic dans l'IHM,
+# pas de configuration qui disparaît si le pod redémarre — cohérent avec
+# l'état éphémère de tout ce dossier, voir prometheus/deployment.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: monitoring
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+        editable: false

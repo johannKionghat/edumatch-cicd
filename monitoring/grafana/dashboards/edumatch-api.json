@@ -1,0 +1,144 @@
+{
+  "title": "EduMatch-IA — API de matching",
+  "uid": "edumatch-api",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "tags": ["edumatch", "B2", "B4"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Les quatre signaux dorés",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Latence /matching — p50 / p95 / p99 (SLO : p95 < 300 ms)",
+      "description": "La moyenne masquerait les requêtes lentes : trois requêtes lentes sur cent peuvent rester invisibles dans une moyenne alors qu'elles sont exactement ce que l'utilisateur retient. On surveille des percentiles, jamais une moyenne seule.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"edumatch-serve\", handler=\"/matching\"}[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"edumatch-serve\", handler=\"/matching\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"edumatch-serve\", handler=\"/matching\"}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "thresholds": {
+        "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.3 }]
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Taux d'erreur (5xx / total)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{job=\"edumatch-serve\", status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"edumatch-serve\"}[5m]))",
+          "legendFormat": "erreurs 5xx"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Débit — requêtes/s par route",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{job=\"edumatch-serve\"}[5m])) by (handler)",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Réplicas prêts (matérialise l'action du HPA, 1 à 6)",
+      "description": "Compte les cibles scrappables du job edumatch-serve — le Service ne référence que les pods ayant passé /health (readiness), donc ce compte suit exactement ce que `kubectl get hpa -n edumatch` affiche, sans dépendre de kube-state-metrics.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10, "stepAfter": true } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "count(up{job=\"edumatch-serve\"} == 1)",
+          "legendFormat": "réplicas prêts"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Métier — contrôle humain (article 14)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Décisions /feedback des 24 dernières heures, par type",
+      "description": "Compte les décisions motivées d'un conseiller (retenu/écarté) — voir edumatch-ia, api/routes/feedback.py. Un compteur qui reste à zéro toute une démonstration est un signal produit, pas un incident : ce n'est pas une alerte, seulement un panneau d'observation.",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(edumatch_feedback_decisions_total[24h])) by (decision)",
+          "legendFormat": "{{decision}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Requêtes /matching sans résultat (catalogue vide pour le profil)",
+      "description": "Signal produit, pas infrastructure : une hausse indique des combinaisons profil x formation trop restrictives, pas une panne.",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 18 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(increase(edumatch_matching_sans_resultat_total[24h]))",
+          "legendFormat": "sans résultat"
+        }
+      ]
+    }
+  ]
+}
