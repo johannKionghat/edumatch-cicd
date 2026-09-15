@@ -1,0 +1,99 @@
+name: Intégration continue (edumatch-ia)
+
+# Ce dépôt ne contient pas le code métier : il contient l'industrialisation.
+# Ce workflow récupère donc edumatch-ia à un commit donné et y fait tourner
+# lint + tests, exactement comme `make lint && make test` en local.
+#
+# Deux façons de le déclencher aujourd'hui :
+#   1. `workflow_dispatch` — manuel, depuis l'onglet Actions. C'est le chemin
+#      à utiliser tant que le déclenchement automatique (étape 2 ci-dessous)
+#      n'est pas câblé côté edumatch-ia.
+#   2. `repository_dispatch` (type `edumatch-ia-push`) — déclenchement
+#      automatique à chaque poussée et pull request sur edumatch-ia, une fois
+#      qu'un petit workflow y a été ajouté pour émettre cet événement (voir le
+#      README de ce dépôt, section "Câblage du déclenchement automatique").
+#
+# Pourquoi pas un simple `on: push` sur CE dépôt : GitHub Actions n'exécute un
+# workflow que sur les événements du dépôt où le fichier vit. Pour piloter la
+# CI d'edumatch-ia depuis edumatch-cicd, il faut soit un événement inter-dépôts
+# (repository_dispatch), soit un déclenchement manuel — jamais un `on: push`
+# qui se déclencherait sur les poussées de CE dépôt, sans rapport avec le code.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branche, tag ou commit d'edumatch-ia à vérifier"
+        required: false
+        default: main
+  repository_dispatch:
+    types: [edumatch-ia-push]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.client_payload.sha || inputs.ref || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  lint-et-tests:
+    name: Lint (ruff) et tests (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Déterminer la référence à vérifier
+        id: ref
+        run: |
+          REF="${{ github.event.client_payload.ref || inputs.ref || 'main' }}"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      # Le code réel est dans l'autre dépôt. `token` n'est requis que si
+      # edumatch-ia est privé — voir README, secret EDUMATCH_IA_PAT.
+      - name: Récupérer edumatch-ia @ ${{ steps.ref.outputs.ref }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/edumatch-ia
+          ref: ${{ steps.ref.outputs.ref }}
+          token: ${{ secrets.EDUMATCH_IA_PAT || github.token }}
+          path: edumatch-ia
+          persist-credentials: false
+
+      # Python 3.11, pas 3.12 : `docker/Dockerfile.serve` et
+      # `docker/Dockerfile.train` d'edumatch-ia épinglent `python:3.11-slim`,
+      # et `pyproject.toml` déclare `target-version = "py311"`. Le principe de
+      # reproductibilité (mêmes quatre éléments : code, données, environnement,
+      # aléa) veut que la CI teste sur l'environnement qui sera réellement
+      # exécuté en production, pas sur celui du poste de développement.
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: edumatch-ia/pyproject.toml
+
+      - name: Installer le paquet et ses dépendances de développement
+        working-directory: edumatch-ia
+        run: pip install -e ".[dev]"
+
+      - name: Lint — ruff
+        working-directory: edumatch-ia
+        run: ruff check src tests
+
+      # data/samples/ est versionné dans edumatch-ia (quelques centaines de
+      # lignes par source) : `actions/checkout` le récupère avec le reste du
+      # dépôt, aucun téléchargement des 4,6 Go de Sirene n'a lieu ici.
+      - name: Tests — pytest (jeux de données échantillonnés, versionnés)
+        working-directory: edumatch-ia
+        env:
+          PYTHONPATH: src
+          EDUMATCH_ENV: dev
+        run: python -m pytest -q --junitxml=rapport-tests.xml
+
+      - name: Publier le rapport de tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-tests-${{ steps.ref.outputs.ref }}
+          path: edumatch-ia/rapport-tests.xml
+          retention-days: 14

@@ -1,0 +1,134 @@
+name: Déploiement (Kapsule, démonstration)
+
+# Applique les manifestes Kubernetes de k8s/ sur le cluster Scaleway Kapsule de
+# démonstration. Volontairement PAS déclenché à chaque poussée : le cluster
+# n'est provisionné que pour les démonstrations (règle de coût du projet — un
+# cluster qui tourne sans surveillance est une erreur d'exploitation, pas un
+# détail), donc son usage doit rester un geste délibéré, pas automatique.
+#
+# Deux déclencheurs :
+#   - manuel (`workflow_dispatch`), le chemin normal pour une démonstration
+#     préparée à l'avance ;
+#   - sur étiquette (`repository_dispatch`, type `edumatch-ia-tag`), pour
+#     déployer une version identifiée (`v1.0.0`, par exemple) plutôt qu'un
+#     état de branche mouvant.
+#
+# Prérequis honnête : les manifestes k8s/base/ n'existent pas encore au moment
+# où ce workflow est écrit (ils arrivent à l'étape suivante, infrastructure).
+# Le job s'arrête avec un message explicite plutôt que d'échouer sur une
+# erreur `kubectl` obscure si on le lance avant qu'ils existent.
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: "Empreinte courte du commit edumatch-ia dont les images ont été publiées (build-images.yml)"
+        required: true
+      environnement:
+        description: "Environnement cible"
+        required: true
+        default: demo
+        type: choice
+        options: [demo]
+  repository_dispatch:
+    types: [edumatch-ia-tag]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false  # un déploiement en cours ne se coupe pas : retour arrière plutôt
+
+jobs:
+  deployer:
+    name: Appliquer les manifestes sur Kapsule (démonstration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: demo  # nécessite une approbation si un environnement protégé est configuré
+    steps:
+      - name: Récupérer ce dépôt (manifestes)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Déterminer l'empreinte du commit à déployer
+        id: sha
+        run: |
+          SHA="${{ github.event.client_payload.sha || inputs.git_sha }}"
+          if [ -z "$SHA" ]; then
+            echo "::error::Aucune empreinte de commit fournie (ni client_payload.sha, ni git_sha)."
+            exit 1
+          fi
+          # On n'accepte qu'une empreinte courte de commit git (7-40 caractères
+          # hexadécimaux) : jamais "latest", jamais une valeur non contrôlée
+          # injectée dans un manifeste appliqué au cluster.
+          if ! echo "$SHA" | grep -Eq '^[0-9a-f]{7,40}$'; then
+            echo "::error::'$SHA' ne ressemble pas à une empreinte de commit git valide."
+            exit 1
+          fi
+          echo "court=$SHA" >> "$GITHUB_OUTPUT"
+
+      # Garde-fou honnête, pas un fallback qui masquerait le problème : si les
+      # manifestes n'existent pas encore (étape infrastructure non faite), on
+      # s'arrête avec un message clair plutôt que de laisser kubectl échouer
+      # de façon confuse sur un dossier vide.
+      - name: Vérifier que les manifestes existent
+        run: |
+          if [ ! -d k8s/base ] || [ -z "$(find k8s/base -name '*.yaml' -o -name '*.yml' 2>/dev/null)" ]; then
+            echo "::error::k8s/base/ ne contient encore aucun manifeste. Ils sont livrés à l'étape infrastructure (Terraform + Kubernetes), qui suit celle-ci. Ce workflow est prêt, il n'a rien à appliquer pour l'instant."
+            exit 1
+          fi
+
+      - name: Installer kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.3
+
+      # Le kubeconfig est stocké tel quel (encodé en base64) comme secret,
+      # obtenu une fois par `scw k8s kubeconfig get <cluster-id>` après
+      # création du cluster (étape infrastructure). Pas de `scw` CLI installé
+      # ici : un fichier de connexion suffit, une dépendance de moins dans le
+      # runner.
+      - name: Configurer l'accès au cluster
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.SCW_KUBECONFIG_B64 }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Vérifier la connexion au cluster
+        run: kubectl cluster-info
+
+      # Les manifestes de k8s/base/ référencent les images par un jeton
+      # littéral (`__EDUMATCH_SERVE_IMAGE__`, `__EDUMATCH_TRAIN_IMAGE__`),
+      # substitué ici par l'image réellement publiée pour ce commit. Convention
+      # documentée dans k8s/README.md, à respecter par les manifestes écrits à
+      # l'étape infrastructure.
+      - name: Substituer les images dans les manifestes
+        run: |
+          set -eu
+          REGISTRE="${{ vars.SCW_REGISTRY_ENDPOINT }}"
+          SHA="${{ steps.sha.outputs.court }}"
+          mkdir -p k8s/rendu
+          for fichier in k8s/base/*.yaml k8s/base/*.yml; do
+            [ -e "$fichier" ] || continue
+            sed \
+              -e "s|__EDUMATCH_SERVE_IMAGE__|${REGISTRE}/edumatch-serve:${SHA}|g" \
+              -e "s|__EDUMATCH_TRAIN_IMAGE__|${REGISTRE}/edumatch-train:${SHA}|g" \
+              "$fichier" > "k8s/rendu/$(basename "$fichier")"
+          done
+
+      - name: Lire le plan avant application (diff)
+        run: kubectl diff -f k8s/rendu/ || true  # code de sortie 1 attendu s'il y a des changements
+
+      - name: Appliquer les manifestes
+        run: kubectl apply -f k8s/rendu/
+
+      - name: Attendre que le déploiement soit prêt
+        run: kubectl rollout status deployment/edumatch-serve --timeout=180s
+
+      - name: Résumé
+        run: |
+          echo "### Déployé sur la démonstration" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit edumatch-ia : \`${{ steps.sha.outputs.court }}\`" >> "$GITHUB_STEP_SUMMARY"
+          kubectl get pods -l app=edumatch-serve >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,108 @@
+name: Construction et publication des images
+
+# Construit les deux images définies dans edumatch-ia/docker/ (Dockerfile.train,
+# Dockerfile.serve — multi-étages, utilisateur non-root, cf. commentaires de ces
+# fichiers) et les publie sur le registre de conteneurs Scaleway.
+#
+# Tag = empreinte courte du commit edumatch-ia (`git rev-parse --short HEAD`),
+# jamais `latest` : un tag `latest` en production empêche de savoir ce qui
+# tourne réellement. C'est aussi ce tag qui sert d'entrée au workflow de
+# déploiement, donnant une chaîne de traçabilité complète : commit -> image ->
+# déploiement.
+#
+# Déclenchement : poussée sur `main` d'edumatch-ia (via repository_dispatch,
+# voir ci.yml et le README) ou manuel. Construire à chaque poussée sur main a
+# un coût mesuré (minutes de runner GitHub-hosted + stockage registre, tous
+# deux faibles pour deux images Python) ; le déclencher aussi sur les pull
+# requests ferait payer ce coût pour du code qui n'est pas encore fusionné,
+# sans bénéfice : le lint et les tests (ci.yml) suffisent à qualifier une PR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit ou branche d'edumatch-ia à construire"
+        required: false
+        default: main
+  repository_dispatch:
+    types: [edumatch-ia-push]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.client_payload.sha || inputs.ref || 'main' }}
+  cancel-in-progress: false  # une publication d'image ne se coupe pas en cours
+
+jobs:
+  construire-et-publier:
+    # N'exécute la construction que pour des poussées sur main, pas sur une
+    # branche de travail : voir la note de coût ci-dessus. En déclenchement
+    # manuel, on fait confiance à la personne qui lance le workflow.
+    if: github.event_name == 'workflow_dispatch' || github.event.client_payload.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - nom: edumatch-serve
+            dockerfile: docker/Dockerfile.serve
+          - nom: edumatch-train
+            dockerfile: docker/Dockerfile.train
+    steps:
+      - name: Déterminer la référence à construire
+        id: ref
+        run: |
+          REF="${{ github.event.client_payload.ref || inputs.ref || 'main' }}"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Récupérer edumatch-ia @ ${{ steps.ref.outputs.ref }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/edumatch-ia
+          ref: ${{ steps.ref.outputs.ref }}
+          token: ${{ secrets.EDUMATCH_IA_PAT || github.token }}
+          path: edumatch-ia
+          persist-credentials: false
+
+      - name: Calculer l'empreinte courte du commit
+        id: sha
+        working-directory: edumatch-ia
+        run: echo "court=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Préparer buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Convention de connexion au registre Scaleway au moment de l'écriture
+      # de ce workflow : utilisateur `nologin` (littéral), mot de passe = clé
+      # secrète Scaleway. À reconfirmer dans la documentation Scaleway au
+      # moment de la première exécution réelle (voir README, "Limites
+      # assumées") : je n'ai pas de compte Scaleway pour le vérifier ici.
+      - name: Se connecter au registre Scaleway
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.SCW_REGISTRY_ENDPOINT }}
+          username: nologin
+          password: ${{ secrets.SCW_SECRET_KEY }}
+
+      - name: Construire et publier ${{ matrix.image.nom }}:${{ steps.sha.outputs.court }}
+        uses: docker/build-push-action@v6
+        with:
+          context: edumatch-ia
+          file: edumatch-ia/${{ matrix.image.dockerfile }}
+          push: true
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.court }}
+          tags: |
+            ${{ vars.SCW_REGISTRY_ENDPOINT }}/${{ matrix.image.nom }}:${{ steps.sha.outputs.court }}
+          # Cache d'inline : les couches ordonnées du stable (dépendances) au
+          # volatil (code source) dans les Dockerfiles d'edumatch-ia rendent ce
+          # cache utile — seule la dernière couche change à un commit de code.
+          cache-from: type=registry,ref=${{ vars.SCW_REGISTRY_ENDPOINT }}/${{ matrix.image.nom }}:cache
+          cache-to: type=registry,ref=${{ vars.SCW_REGISTRY_ENDPOINT }}/${{ matrix.image.nom }}:cache,mode=max
+
+      - name: Résumé
+        run: |
+          echo "### Image publiée" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`${{ vars.SCW_REGISTRY_ENDPOINT }}/${{ matrix.image.nom }}:${{ steps.sha.outputs.court }}\`" >> "$GITHUB_STEP_SUMMARY"
