@@ -14,15 +14,35 @@ spec:
     kind: Deployment
     name: edumatch-serve
 
-  # minReplicas / maxReplicas = 1:6 — repris directement du rapport de
-  # charge mesuré entre le pic de la période de vœux Parcoursup
-  # (janvier-mai) et le creux estival (environ 30 % d'utilisation moyenne en
-  # dimensionnement fixe, voir docs/sous-docs-projets côté edumatch-ia). Le
-  # HPA rend ce rapport agissant plutôt que descriptif : 1 réplica suffit au
-  # creux, jusqu'à 6 absorbent le pic, sans dimensionner en permanence pour
-  # le pic (ce que ferait un `replicas: 6` fixe, gaspillant environ 70 % de
-  # la capacité le reste de l'année).
-  minReplicas: 1
+  # `minReplicas` et `maxReplicas` répondent à deux questions différentes,
+  # et c'est volontaire de ne pas les faire coïncider avec un même rapport :
+  #
+  # - `maxReplicas: 6` matérialise la DEMANDE : le rapport de charge mesuré
+  #   entre le pic de la période de vœux Parcoursup (janvier-mai) et le
+  #   creux estival est de l'ordre de 1 à 6 (environ 30 % d'utilisation
+  #   moyenne en dimensionnement fixe, voir docs/sous-docs-projets côté
+  #   edumatch-ia). 6 est le nombre de réplicas nécessaires pour absorber le
+  #   pic, sans dimensionner en permanence pour lui (ce que ferait un
+  #   `replicas: 6` fixe, gaspillant environ 70 % de la capacité le reste de
+  #   l'année) ; le pool de nœuds (terraform/variables.tf,
+  #   `pool_taille_max: 2`) est dimensionné pour porter ces 6 pods.
+  # - `minReplicas: 2` répond à une question de DISPONIBILITÉ, indépendante
+  #   du niveau de charge : avec un seul réplica, un redémarrage de nœud ou
+  #   la fenêtre entre la bascule d'un rolling update laisse un instant sans
+  #   aucun pod prêt, quel que soit le trafic à ce moment-là — inacceptable
+  #   même au creux estival, et même pour une démonstration qui doit rester
+  #   joignable pendant qu'elle est filmée. Ce plancher ne découle PAS du
+  #   rapport 1:6 : le confondre avec lui serait exactement l'erreur
+  #   corrigée ici (voir deployment.yaml, qui déclarait un plancher de
+  #   disponibilité à 2 en commentaire pendant que ce fichier imposait un
+  #   plancher réel à 1, contradiction que le HPA aurait fait gagner à
+  #   chaque tour de réconciliation).
+  #
+  # Le rapport 1:6 reste donc lisible dans l'amplitude utile de
+  # l'autoscaling (2 à 6, un facteur 3 en fonctionnement normal), pas dans
+  # les deux bornes brutes ; le nombre qui compte pour l'argument de
+  # saisonnalité est le plafond de 6 au pic, pas le plancher.
+  minReplicas: 2
   maxReplicas: 6
 
   metrics:

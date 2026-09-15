@@ -67,13 +67,14 @@ variable "pool_taille_max" {
   description = <<-EOT
     Nombre maximal de nœuds autorisé par l'autoscaler de pool. Fixé à 2 : le
     HPA applicatif (k8s/base/hpa.yaml) monte jusqu'à 6 réplicas
-    edumatch-serve pour matérialiser le rapport de charge 1:6 de la
-    saisonnalité Parcoursup, mais chaque nœud DEV1-M (4 Go) peut porter
-    plusieurs réplicas de 256-512 Mi chacun sans qu'un nœud par pod soit
-    nécessaire. 2 nœuds suffisent à accueillir 6 pods edumatch-serve avec la
-    marge système ; ce n'est pas mesuré sous charge réelle (pas de cluster
-    disponible dans cette session), donc une valeur prudente plutôt
-    qu'optimisée à l'unité près.
+    edumatch-serve au pic — plafond qui matérialise le rapport de charge 1:6
+    de la saisonnalité Parcoursup — depuis un plancher de 2 réplicas fixé
+    pour la disponibilité (indépendant de ce rapport, voir hpa.yaml). Chaque
+    nœud DEV1-M (4 Go) peut porter plusieurs réplicas de 256-512 Mi chacun
+    sans qu'un nœud par pod soit nécessaire. 2 nœuds suffisent à accueillir
+    6 pods edumatch-serve avec la marge système ; ce n'est pas mesuré sous
+    charge réelle (pas de cluster disponible dans cette session), donc une
+    valeur prudente plutôt qu'optimisée à l'unité près.
   EOT
   type        = number
   default     = 2

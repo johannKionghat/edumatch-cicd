@@ -1,0 +1,30 @@
+# PodDisruptionBudget — protège le plancher de disponibilité (hpa.yaml,
+# `minReplicas: 2`) contre les ÉVICTIONS VOLONTAIRES, distinctes des pannes
+# subies : un `kubectl drain` avant maintenance planifiée, une mise à
+# niveau du pool de nœuds Scaleway, ou l'`autohealing` qui remplace
+# proactivement un nœud dégradé passent tous par une éviction contrôlée des
+# pods qu'ils portent, et c'est cette éviction que ce budget encadre. Il
+# n'a aucun effet sur la perte brutale d'un nœud (coupure réseau, panne
+# matérielle) : dans ce cas le pod disparaît sans que personne ne demande
+# la permission, et seule l'anti-affinité de `deployment.yaml` (quand deux
+# nœuds sont disponibles) réduit ce risque.
+#
+# `minAvailable: 1`, pas 2 : avec un plancher applicatif à 2 réplicas,
+# imposer `minAvailable: 2` interdirait TOUTE éviction volontaire tant que
+# le second pod n'est pas déjà de retour ailleurs — un `kubectl drain`
+# resterait bloqué indéfiniment sur un pool à un seul nœud
+# (`terraform/variables.tf`, `pool_taille_min: 1`), ce qui empêcherait la
+# maintenance de nœud de progresser sans un `--force` manuel. `minAvailable:
+# 1` autorise l'éviction d'un pod à la fois : jamais zéro pod prêt pendant
+# une opération planifiée (l'exigence que ce dépôt refuse de sacrifier),
+# mais la maintenance reste possible.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: edumatch-serve
+  namespace: edumatch
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: edumatch-serve

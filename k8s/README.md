@@ -3,8 +3,9 @@
 Manifestes du cluster de démonstration (Scaleway Kapsule, provisionné par
 `terraform/`). Dimensionnement (`requests`/`limits`) et `HorizontalPodAutoscaler`
 sont posés sur les chiffres du dossier — le rapport de charge 1:6 de la
-saisonnalité Parcoursup — pas devinés ; voir le commentaire de chaque fichier
-pour le raisonnement complet.
+saisonnalité Parcoursup pour le plafond de réplicas, un plancher de
+disponibilité de 2 réplicas indépendant de ce rapport — pas devinés ; voir le
+commentaire de chaque fichier pour le raisonnement complet.
 
 ## Convention attendue par `deploy.yml`
 
@@ -37,9 +38,10 @@ k8s/
 │   ├── namespace.yaml         espace de noms dédié (cloisonnement, critère 2.7)
 │   ├── serviceaccount.yaml    compte de service dédié, aucun jeton monté
 │   ├── configmap.yaml         configuration non sensible (EDUMATCH_ENV, chemins, bucket)
-│   ├── deployment.yaml        API edumatch-serve — requests/limits, sondes, sécurité
+│   ├── deployment.yaml        API edumatch-serve — requests/limits, sondes, sécurité, anti-affinité (pas de `replicas` : piloté par le HPA)
 │   ├── service.yaml           adresse stable ClusterIP
-│   ├── hpa.yaml                1 à 6 réplicas selon l'utilisation CPU
+│   ├── hpa.yaml                2 à 6 réplicas selon l'utilisation CPU (plancher de disponibilité, plafond du rapport de charge 1:6)
+│   ├── pdb.yaml                budget de perturbation — jamais zéro pod prêt pendant une éviction volontaire (maintenance, drain)
 │   └── networkpolicy.yaml     cloisonnement réseau entre pods
 └── secret.example.yaml        gabarit de secrets — jamais appliqué automatiquement
 ```
@@ -78,6 +80,37 @@ de ce manifeste — que je ne modifie jamais depuis ici. La correction propre
 serait une route `/ready` dédiée côté API, qui vérifierait
 `app.state.etat_matching is not None` ; à proposer côté edumatch-ia dans une
 prochaine itération, pas faite aujourd'hui.
+
+## Plancher de réplicas et plafond — deux arguments distincts
+
+`hpa.yaml` fixe `minReplicas: 2` et `maxReplicas: 6`. Ces deux bornes ne
+répondent pas à la même question et n'ont aucune raison de partager le même
+rapport 1:6 :
+
+- **Le plafond (6)** matérialise la DEMANDE : le rapport de charge mesuré
+  entre le pic Parcoursup (janvier-mai) et le creux estival, détaillé dans le
+  commentaire de `hpa.yaml`.
+- **Le plancher (2)** répond à une exigence de DISPONIBILITÉ, valable même
+  au creux de charge : avec un seul réplica, un redémarrage de nœud ou la
+  fenêtre d'un `RollingUpdate` laisse un instant sans aucun pod prêt.
+
+`deployment.yaml` ne fixe plus `replicas` du tout : dès qu'un HPA cible un
+Deployment, c'est lui qui décide du nombre de réplicas en continu, et
+laisser une valeur fixe dans le Deployment provoquerait un conflit à chaque
+`kubectl apply` (le champ écraserait la décision du HPA, qui la
+recorrigerait ensuite). Conséquence assumée : à la toute première création
+de l'objet, Kubernetes applique son propre défaut (1 réplica) jusqu'au
+premier tour de réconciliation du HPA — une fenêtre transitoire de quelques
+secondes, pas un état durable.
+
+`pdb.yaml` (`PodDisruptionBudget`, `minAvailable: 1`) protège ce plancher
+contre les évictions VOLONTAIRES (maintenance planifiée, mise à niveau du
+pool, `autohealing` proactif) : jamais zéro pod prêt pendant une telle
+opération. Il ne protège pas contre la perte brutale d'un nœud, que
+l'anti-affinité souple (`preferredDuringSchedulingIgnoredDuringExecution`)
+de `deployment.yaml` atténue seulement quand deux nœuds sont disponibles —
+elle ne bloque jamais un déploiement si le pool est réduit à un seul nœud
+(`terraform/variables.tf`, `pool_taille_min: 1`).
 
 ## Ce qui n'a pas pu être vérifié ici
 

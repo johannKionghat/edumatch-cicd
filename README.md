@@ -272,8 +272,8 @@ kubectl create secret docker-registry edumatch-registry-pull --namespace edumatc
 ### 4. Vérifier
 
 ```
-kubectl get pods -n edumatch -w                           # les 2 réplicas passent Running puis Ready
-kubectl get hpa -n edumatch                                # cible CPU visible, réplicas actuels/min/max
+kubectl get pods -n edumatch -w                           # les 2 réplicas (plancher de disponibilité) passent Running puis Ready
+kubectl get hpa -n edumatch                                # cible CPU visible, réplicas actuels/min(2)/max(6)
 kubectl port-forward -n edumatch svc/edumatch-serve 8000:80
 curl http://localhost:8000/health
 ```

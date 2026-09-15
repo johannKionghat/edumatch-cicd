@@ -12,12 +12,25 @@ metadata:
   labels:
     app: edumatch-serve
 spec:
-  # Réplica de départ modeste : le HorizontalPodAutoscaler (hpa.yaml) prend
-  # le relais dès que la charge le justifie. 2, pas 1, dès le départ : avec
-  # un seul réplica, un rolling update ou un redémarrage de nœud laisse une
-  # fenêtre sans aucun pod prêt — inacceptable même pour une démonstration
-  # qui doit rester joignable pendant qu'elle est filmée.
-  replicas: 2
+  # `replicas` n'est délibérément PAS fixé ici. Le HorizontalPodAutoscaler
+  # (hpa.yaml) cible ce Deployment et impose son propre plancher
+  # (`minReplicas: 2`) et son propre plafond (`maxReplicas: 6`) : dès qu'un
+  # HPA pilote un Deployment, c'est lui qui décide du nombre de réplicas en
+  # continu, `replicas` du Deployment n'étant qu'une valeur de départ que
+  # Kubernetes utilise UNE seule fois, à la création de l'objet. La preuve
+  # de la faute que fixer une valeur ici aurait produite : chaque
+  # `kubectl apply` de ce fichier (à chaque `deploy.yml`) aurait réécrasé le
+  # nombre de réplicas décidé par le HPA — par exemple redescendre à 2
+  # pendant un pic à 5, avant que le HPA ne recorrige au tour de
+  # réconciliation suivant — un aller-retour inutile et un signal
+  # contradictoire pour quiconque lit `kubectl get events` pendant une
+  # démonstration.
+  # Conséquence assumée : à la toute première création de ce Deployment (pas
+  # à chaque redéploiement, seulement la première fois), Kubernetes applique
+  # son propre défaut de 1 réplica jusqu'à ce que le contrôleur HPA fasse son
+  # premier tour de réconciliation (quelques secondes à une minute) et le
+  # remonte à 2. C'est une fenêtre transitoire à la création initiale
+  # uniquement, pas un état durable ni un risque de retomber à 1 après coup.
   revisionHistoryLimit: 3 # de quoi revenir en arrière de quelques versions sans accumuler indéfiniment d'anciens ReplicaSet
   strategy:
     type: RollingUpdate
@@ -32,6 +45,29 @@ spec:
       labels:
         app: edumatch-serve
     spec:
+      # Anti-affinité SOUPLE (`preferred`, pas `required`) entre pods de ce
+      # Deployment : demande au planificateur d'éviter de placer deux
+      # réplicas sur le même nœud quand une alternative existe, sans jamais
+      # bloquer un déploiement si elle ne peut pas être respectée. `required`
+      # serait une faute ici : le pool de nœuds (terraform/variables.tf,
+      # `pool_taille_min: 1`) peut redescendre à un seul nœud au creux de
+      # charge, et une règle stricte empêcherait alors le second pod d'être
+      # planifié du tout — un déploiement bloqué pour une raison de
+      # résilience est pire que l'absence de résilience elle-même. Quand le
+      # pool compte deux nœuds (charge normale ou pic), cette préférence
+      # réduit le risque qu'une panne d'un seul nœud emporte les deux
+      # réplicas à la fois ; voir aussi `pdb.yaml`, qui protège contre les
+      # évictions volontaires (purge/maintenance planifiée) plutôt que contre
+      # la perte réelle d'un nœud.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: edumatch-serve
       serviceAccountName: edumatch-serve
       automountServiceAccountToken: false
 

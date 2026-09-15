@@ -76,8 +76,14 @@ en continu demain.
 > **Budget d'erreur = 0,5 % des requêtes peuvent échouer sans que le SLO soit
 > considéré violé.**
 
-99,5 % et non 99,9 % : sur un service à un seul réplica minimum (`hpa.yaml`,
-`minReplicas: 1` au creux de charge) et sans tolérance multi-zone
+99,5 % et non 99,9 % : `hpa.yaml` impose un plancher de 2 réplicas
+applicatifs même au creux de charge, mais le pool de nœuds sous-jacent
+(`terraform/variables.tf`, `pool_taille_min: 1`) peut redescendre à un seul
+nœud — les deux pods peuvent alors se retrouver colocalisés dessus (l'
+anti-affinité de `deployment.yaml` est souple, pas stricte, précisément
+pour ne jamais bloquer un déploiement sur un pool à un seul nœud), et la
+perte de ce nœud unique reste une coupure totale malgré le plancher de deux
+pods. Ajouté à l'absence de tolérance multi-zone
 (`terraform/variables.tf`, une seule zone `fr-par-1`), un redéploiement
 (`RollingUpdate`, `maxUnavailable: 0` — donc sans coupure en théorie) ou un
 `autohealing` de nœud peuvent introduire quelques secondes d'indisponibilité
