@@ -16,3 +16,14 @@ version_kubernetes = "1.30"
 type_noeud         = "DEV1-M"
 pool_taille_min    = 1
 pool_taille_max    = 2
+
+# ─── Instance Airflow (ADR 0019) ─────────────────────────────────────────
+# Valeur factice ci-dessous pour cidr_operateur : à remplacer par sa propre
+# adresse IP publique au format CIDR /32 avant tout `terraform plan`. Cette
+# variable est obligatoire (pas de valeur par défaut dans variables.tf) :
+# `curl -4 ifconfig.me` (ou tout service équivalent) donne l'adresse à
+# utiliser, sous la forme "203.0.113.42/32".
+type_instance_airflow    = "DEV1-L"
+cidr_operateur           = "203.0.113.42/32" # FACTICE — à remplacer par sa propre IP
+airflow_active           = false
+taille_volume_airflow_go = 60

@@ -79,3 +79,73 @@ variable "pool_taille_max" {
   type        = number
   default     = 2
 }
+
+# ─── Instance dédiée à Airflow (ADR 0019) ────────────────────────────────
+
+variable "type_instance_airflow" {
+  description = <<-EOT
+    Type de l'instance qui exécute la pile Airflow de production (ADR 0019,
+    edumatch-ia). DEV1-L (4 vCPU, 8 Go de RAM) retenu : la documentation
+    Airflow 2.9.3 demande au moins 4 Go pour la pile Compose de référence
+    (base de métadonnées, ordonnanceur, serveur web) ; 8 Go laissent de la
+    marge pour la tâche Spark d'agrégation Sirene, qui s'exécute dans le
+    même conteneur travailleur. DEV1-M (4 Go) a été écarté : il correspond
+    exactement au plancher documenté pour Airflow seul, sans aucune marge.
+    DEV1-XL (12 Go) reste le repli si la mesure du pic mémoire de la tâche
+    Spark l'exige (voir l'ADR, section "Mesures à faire au premier
+    lancement"). Prix constaté sur la page tarifaire publique de Scaleway le
+    2026-09-15 : environ 0,04284 EUR/heure (~31,27 EUR/mois si l'instance
+    tournait un mois complet — elle ne tourne que pendant les séances de
+    tournage, voir `airflow_active`).
+  EOT
+  type        = string
+  default     = "DEV1-L"
+}
+
+variable "cidr_operateur" {
+  description = <<-EOT
+    Plage d'adresses IP autorisée à se connecter en SSH (port 22) à
+    l'instance Airflow, au format CIDR (ex. "203.0.113.42/32" pour une
+    adresse unique). Aucune valeur par défaut n'est fournie : une valeur par
+    défaut ouvrirait le port SSH au monde entier (0.0.0.0/0) tant que
+    personne n'y penserait, ce qui serait une faute de sécurité par
+    omission, pas un détail de configuration. `terraform plan` échoue tant
+    que cette variable n'est pas renseignée explicitement — voir
+    terraform.tfvars.example et le README pour savoir comment trouver sa
+    propre adresse IP publique.
+  EOT
+  type        = string
+}
+
+variable "airflow_active" {
+  description = <<-EOT
+    Bascule l'existence de toutes les ressources de `airflow.tf`
+    (`count = var.airflow_active ? 1 : 0`). `false` par défaut : l'instance
+    n'existe et ne se facture que pendant les séances de tournage
+    (démonstration filmée, répétition). C'est la même règle de coût que le
+    cluster Kapsule (voir terraform/README.md) appliquée à une ressource
+    facturée à l'heure plutôt qu'au nœud d'un pool élastique — une
+    instance oubliée active coûte de l'ordre de 40 EUR par mois pour rien
+    (voir l'ADR 0019 pour le détail du calcul).
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "taille_volume_airflow_go" {
+  description = <<-EOT
+    Taille en Go du volume bloc additionnel qui porte `/srv/edumatch/data`
+    (base de métadonnées Airflow, données Parcoursup et Sirene
+    retéléchargées, journaux de tâches). 60 Go par défaut : les données
+    mesurées sur le poste de développement pèsent environ 4,7 Go
+    (`data/raw/sirene` 4,4 Go, le reste très en dessous), auxquels s'ajoutent
+    les images Docker tirées du registre et les fichiers temporaires de
+    Spark pendant l'agrégation — non mesurés précisément, d'où une marge
+    large plutôt qu'un dimensionnement à l'unité près. Prix constaté sur la
+    page tarifaire publique de Scaleway le 2026-09-15 pour du stockage bloc
+    5K : environ 0,000130 EUR/Go/heure, soit environ 5,70 EUR pour 60 Go sur
+    un mois complet.
+  EOT
+  type        = number
+  default     = 60
+}

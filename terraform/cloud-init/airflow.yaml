@@ -1,0 +1,82 @@
+#cloud-config
+# Initialisation de l'instance dédiée à Airflow (ADR 0019, edumatch-ia).
+#
+# AUCUN SECRET DANS CE FICHIER. Les données d'initialisation (`user_data`)
+# d'une instance Scaleway restent lisibles depuis l'intérieur de l'instance
+# via son service de métadonnées (http://169.254.42.42) et depuis la
+# console Scaleway par quiconque a accès au projet. Ce script se limite donc
+# à installer Docker et à préparer l'arborescence de données : la connexion
+# au registre privé (`docker login`) et le fichier `.env` applicatif se
+# déposent après coup par SSH, avec la clé lue depuis l'environnement de
+# l'opérateur — jamais copiés ici.
+#
+# Alternative écartée : une image pré-construite (Packer) qui embarquerait
+# Docker déjà installé. Elle réduirait le temps de démarrage de quelques
+# dizaines de secondes, au prix d'un pipeline de construction d'image
+# supplémentaire à maintenir — disproportionné pour une instance qui ne vit
+# que pendant une séance de tournage. Le seuil qui ferait reconsidérer :
+# plusieurs dizaines de démarrages par mois, où ces secondes cumulées
+# justifieraient l'outillage.
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+
+write_files:
+  # Répertoire de données applicatives : base PostgreSQL de métadonnées
+  # Airflow, données Parcoursup/Sirene retéléchargées, journaux de tâches.
+  # Monté sur le volume additionnel (voir terraform/airflow.tf), pas sur le
+  # disque racine, pour survivre indépendamment du cycle de vie de
+  # l'instance elle-même.
+  - path: /etc/edumatch/README-data
+    permissions: "0644"
+    content: |
+      Ce répertoire attend le montage du volume de données Scaleway
+      (`/dev/sdb` en général sur les instances DEV1). Le formater et le
+      monter est un geste manuel, volontairement laissé hors de ce script :
+      un `mkfs` déclenché automatiquement sur le mauvais périphérique est
+      un incident, pas une commodité. Voir terraform/README.md, section
+      "Provisionner l'instance", pour la commande exacte à exécuter par
+      SSH une fois l'instance démarrée.
+
+runcmd:
+  # ─── Docker Engine + plugin Compose ─────────────────────────────────────
+  # Dépôt officiel Docker plutôt que le paquet `docker.io` d'Ubuntu : ce
+  # dernier retarde souvent de plusieurs versions mineures et n'embarque pas
+  # toujours le plugin Compose v2 (`docker compose`, sans tiret) utilisé par
+  # `docker-compose.prod.yml` côté edumatch-ia.
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - >-
+    echo "deb [arch=$(dpkg --print-architecture)
+    signed-by=/etc/apt/keyrings/docker.asc]
+    https://download.docker.com/linux/ubuntu
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" |
+    tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable docker
+  - systemctl start docker
+
+  # ─── Arborescence de données ────────────────────────────────────────────
+  # Créée sur le disque racine en attendant le montage manuel du volume
+  # additionnel (voir write_files ci-dessus) : la démonstration peut
+  # démarrer même si le volume n'est pas encore monté, quitte à ce que les
+  # données atterrissent temporairement sur un disque plus petit — préférable
+  # à un script qui échouerait silencieusement sur un périphérique absent.
+  - mkdir -p /srv/edumatch/data
+  - chown -R 1000:1000 /srv/edumatch
+
+  # ─── Utilisateur non privilégié pour l'exploitation courante ───────────
+  # `ubuntu` (créé par défaut sur l'image) rejoint le groupe `docker` :
+  # l'opérateur qui se connecte par SSH n'a pas besoin de `sudo` pour lancer
+  # `docker compose`, ce qui réduit le risque d'une commande destructive
+  # lancée par erreur avec des privilèges root.
+  - usermod -aG docker ubuntu
+
+final_message: "Instance edumatch-airflow prête après $UPTIME secondes. Docker installé ; le volume de données et la pile applicative restent à monter et démarrer manuellement (voir terraform/README.md)."

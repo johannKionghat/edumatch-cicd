@@ -58,10 +58,76 @@ exemple) qu'aucun des trois grands ne serait seul à proposer — pas le cas ici
 | Fichier | Contenu |
 |---|---|
 | `versions.tf` | Version de Terraform et du provider épinglées, backend `s3` distant |
-| `variables.tf` | Paramètres non sensibles (région, taille de nœud, bornes du pool...) |
+| `variables.tf` | Paramètres non sensibles (région, taille de nœud, bornes du pool, instance Airflow...) |
 | `main.tf` | Réseau privé, cluster Kapsule, pool, registre, bucket d'artefacts |
+| `airflow.tf` | Instance dédiée à l'orchestrateur Airflow (ADR 0019) : IP publique, groupe de sécurité, volume de données, instance |
+| `cloud-init/airflow.yaml` | Initialisation de l'instance Airflow au premier démarrage : Docker, arborescence de données, aucun secret |
 | `outputs.tf` | Identifiants utiles après `apply` — rien de sensible |
 | `terraform.tfvars.example` | Valeurs par défaut documentées, à copier en `terraform.tfvars` si besoin |
+
+## L'instance Airflow (ADR 0019)
+
+Le cluster Kapsule héberge l'API, dont la charge suit la campagne de vœux
+(rapport de 1 à 6, absorbé par le HPA). Le pipeline de données suit une
+cadence différente — annuelle, mensuelle, quotidienne selon le DAG — et n'a
+aucun pic concurrent à absorber : il n'a pas besoin d'un cluster élastique.
+La décision complète, avec les chiffres de mémoire qui l'ont emportée sur
+« Airflow sur Kapsule », est dans l'ADR 0019 côté edumatch-ia
+(`docs/sous-docs-projets/adr/0019-airflow-en-production-sur-instance-dediee.md`).
+
+Toutes les ressources de `airflow.tf` sont conditionnées par
+`var.airflow_active` (`false` par défaut) : l'instance n'existe, et ne se
+facture, que pendant les séances de tournage — exactement la même
+discipline que pour le cluster Kapsule, appliquée ici à une machine
+facturée à l'heure plutôt qu'à un pool élastique.
+
+### Séquence propre à l'instance Airflow
+
+```bash
+cd terraform
+
+# 1. Trouver sa propre adresse IP publique, pour cidr_operateur
+curl -4 ifconfig.me
+# noter le résultat, l'écrire dans terraform.tfvars sous la forme
+# cidr_operateur = "203.0.113.42/32"
+
+# 2. Activer l'instance et relire le plan avant d'appliquer
+#    (dans terraform.tfvars : airflow_active = true)
+terraform plan -out=plan-airflow.tfout     # LIRE CE PLAN
+terraform apply plan-airflow.tfout
+terraform output airflow_ip_publique
+terraform output airflow_commande_tunnel
+
+# 3. Se connecter et déployer la pile applicative
+#    (côté edumatch-ia : docker-compose.prod.yml, voir son README)
+$(terraform output -raw airflow_commande_tunnel)
+# puis, dans une seconde fenêtre, ouvrir http://localhost:8080 dans un
+# navigateur pour l'interface Airflow — jamais exposée autrement
+
+# 4. Tourner, filmer la panne et la reprise (voir l'ADR 0019, section
+#    "Comment la panne sera montrée dans cet environnement")
+
+# 5. Détruire — toujours après la séance
+#    (dans terraform.tfvars : airflow_active = false)
+terraform plan -out=destroy-airflow.tfout   # LIRE CE PLAN aussi
+terraform apply destroy-airflow.tfout
+```
+
+### Coût de l'instance Airflow, ordre de grandeur
+
+| Poste | Coût constaté sur la page tarifaire publique Scaleway (2026-09-15) |
+|---|---|
+| Instance DEV1-L (4 vCPU, 8 Go) | ≈ 0,04284 EUR/heure, ≈ 31,27 EUR/mois si elle tournait en permanence |
+| IPv4 flexible | ≈ 0,005 EUR/heure, ≈ 3,6 EUR/mois |
+| Volume bloc 60 Go (5K) | ≈ 5,70 EUR/mois si conservé un mois complet |
+
+Pour une séance de tournage de 6 heures : de l'ordre de **0,35 EUR**. Pour
+toute la période de préparation avant la certification, si l'instance reste
+allumée en continu (≈ 288 h) : de l'ordre de **16 EUR** — chiffres détaillés
+dans l'ADR 0019. Une instance oubliée active pendant un mois entier coûte de
+l'ordre de **40 EUR** pour rien : c'est exactement l'erreur d'exploitation
+que la règle de coût interdit, et `airflow_active = false` est le geste qui
+l'évite.
 
 ## Amorçage — à faire une seule fois, avant le premier `terraform init`
 
@@ -94,11 +160,30 @@ fichier pour que la correction reste rapide :
   main pendant l'étape CI/CD précédente (voir la note dans `main.tf`, section
   "Registre de conteneurs") — à trancher (import ou recréation) avant le
   premier `apply`.
+- **Le libellé exact de l'image Ubuntu LTS** utilisée par
+  `scaleway_instance_server.airflow` (`airflow.tf`) : `ubuntu_jammy` suit la
+  convention observée dans la documentation publique Scaleway au
+  2026-09-15, mais elle évolue avec les images retirées ou ajoutées au
+  catalogue — à confirmer par `scw instance image list zone=fr-par-1` avant
+  le premier `apply`.
+- **Les noms d'attributs `ip_id` et le bloc `private_network` sur
+  `scaleway_instance_server`**, ainsi que `stateful` sur
+  `scaleway_instance_security_group`, dans la version 2.83.0 du provider —
+  non exécutés faute de binaire Terraform dans cette session, à confirmer
+  par `terraform validate`.
 
-`terraform fmt` a été appliqué à tous les fichiers. `terraform validate` n'a
-pas pu être exécuté (binaire absent de cet environnement) : à lancer en
-premier, avant `plan`, dès que Terraform est disponible sur le poste qui
-exécutera réellement le provisionnement.
+`terraform fmt` a été appliqué manuellement (indentation à deux espaces,
+alignement des `=`) aux fichiers existant avant l'ajout d'`airflow.tf` ;
+faute de binaire Terraform dans cette session, ni `terraform fmt` ni
+`terraform validate` n'ont pu être exécutés sur `airflow.tf` et
+`cloud-init/airflow.yaml`. Les deux commandes sont à lancer avant `plan`, dès
+que Terraform est disponible sur le poste qui exécutera réellement le
+provisionnement :
+
+```bash
+terraform fmt -recursive
+terraform validate
+```
 
 ## Coût — ordre de grandeur, à vérifier avant de laisser tourner
 

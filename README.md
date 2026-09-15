@@ -62,8 +62,14 @@ dans ce fichier, pas encore collé), le tableau de bord reste vide.
 | Workflow | Déclenchement | Ce qu'il fait |
 |---|---|---|
 | `ci.yml` | manuel, ou automatique sur poussée/PR d'edumatch-ia (voir câblage ci-dessous) | Récupère edumatch-ia au commit demandé, `ruff check`, `pytest` sur les échantillons versionnés (`data/samples/`, jamais un téléchargement de 4,6 Go) |
-| `build-images.yml` | manuel, ou automatique sur poussée sur `main` d'edumatch-ia | Construit `edumatch-serve` et `edumatch-train` depuis `edumatch-ia/docker/`, les tague par l'empreinte courte du commit, les publie sur le registre Scaleway |
+| `build-images.yml` | manuel, ou automatique sur poussée sur `main` d'edumatch-ia | Construit `edumatch-serve`, `edumatch-train` et `edumatch-airflow` depuis `edumatch-ia/docker/`, les tague par l'empreinte courte du commit, les publie sur le registre Scaleway |
 | `deploy.yml` | manuel, ou sur étiquette (tag) d'edumatch-ia | Applique les manifestes de `k8s/base/` sur le cluster de démonstration Kapsule, après vérification qu'ils existent |
+
+`edumatch-airflow` est construit depuis `edumatch-ia/docker/Dockerfile.airflow`.
+Ce fichier est, à ce jour, en cours de correction côté edumatch-ia (ADR 0019 :
+il lui manque une machine virtuelle Java et l'extra `[spark]`, nécessaires à
+la tâche d'agrégation Sirene) — `build-images.yml` le construira tel qu'il
+existe au commit demandé, sans jugement sur son contenu.
 
 Aucun des trois ne se déclenche sur chaque poussée vers le cluster de
 démonstration : voir la règle de coût plus bas.
@@ -188,10 +194,20 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
    bloquant côté `edumatch-ia` : l'instrumentation Prometheus de l'API n'est
    pas encore ajoutée — code exact fourni dans `monitoring/README.md`, à
    coller avant que les tableaux de bord n'affichent quoi que ce soit.
-4. Câblage du déclenchement automatique (section ci-dessus).
-5. Panne provoquée et reprise, filmée (E39) — une fois le cluster et l'API
+4. ~~Instance dédiée à Airflow (ADR 0019) : `terraform/airflow.tf`,
+   `terraform/cloud-init/airflow.yaml`, image `edumatch-airflow` dans
+   `build-images.yml`~~ — fait, voir `terraform/README.md`, section
+   "L'instance Airflow". Reste bloquant côté `edumatch-ia`, listé dans
+   l'ADR 0019 lui-même : la correction de `docker/Dockerfile.airflow`
+   (machine virtuelle Java, extra `[spark]`), `docker-compose.prod.yml`, et
+   les scripts de démonstration de panne.
+5. Câblage du déclenchement automatique (section ci-dessus).
+6. Panne provoquée et reprise, filmée (E39) — une fois le cluster et l'API
    effectivement déployés au moins une fois, avec le monitoring en place
-   pour observer l'alerte se déclencher puis se résorber.
+   pour observer l'alerte se déclencher puis se résorber. Pour le pipeline,
+   la panne se filme sur l'instance Airflow (voir l'ADR 0019, section
+   "Comment la panne sera montrée dans cet environnement"), pas sur le
+   cluster Kapsule.
 
 ## Infrastructure de démonstration — la séquence de bout en bout
 
@@ -280,6 +296,31 @@ curl http://localhost:8000/health
 Ouvrir `http://localhost:8000/` dans un navigateur pour l'écran conseiller
 (E31), ou appeler `/matching` directement — c'est le moment de filmer la
 vidéo de production exigée par les blocs 2 et 4.
+
+### 4bis. Instance Airflow (ADR 0019) — séquence propre, indépendante du cluster
+
+L'instance Airflow ne partage rien avec le cluster Kapsule sinon le réseau
+privé : elle se provisionne, se tourne et se détruit séparément, avec sa
+propre bascule de coût (`airflow_active`). Séquence détaillée et coût dans
+`terraform/README.md`, section "L'instance Airflow (ADR 0019)" ; résumé :
+
+```
+cd terraform
+curl -4 ifconfig.me                        # note l'IP à mettre dans cidr_operateur
+# terraform.tfvars : cidr_operateur = "<ip-notée>/32", airflow_active = true
+terraform plan -out=plan-airflow.tfout     # LIRE CE PLAN
+terraform apply plan-airflow.tfout
+$(terraform output -raw airflow_commande_tunnel)   # ouvre le tunnel SSH
+# dans une seconde fenêtre : http://localhost:8080 pour l'interface Airflow
+```
+
+Puis, une fois le tournage terminé :
+
+```
+# terraform.tfvars : airflow_active = false
+terraform plan -out=destroy-airflow.tfout  # LIRE CE PLAN aussi
+terraform apply destroy-airflow.tfout
+```
 
 ### 5. Détruire — toujours après la démonstration
 

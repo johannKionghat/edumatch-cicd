@@ -27,3 +27,21 @@ output "reseau_prive_id" {
   description = "Identifiant du réseau privé auquel le cluster est rattaché."
   value       = scaleway_vpc_private_network.edumatch.id
 }
+
+# ─── Instance Airflow (ADR 0019) ─────────────────────────────────────────
+#
+# Vides (liste vide indexée) quand `airflow_active = false` : ces deux
+# sorties n'ont de sens que pendant une séance de tournage. Rien de
+# sensible ici non plus — une adresse IP publique et une commande SSH ne
+# sont pas des secrets, à condition que le groupe de sécurité associé
+# n'autorise que `var.cidr_operateur` (voir airflow.tf).
+
+output "airflow_ip_publique" {
+  description = "Adresse IP publique de l'instance Airflow, si `airflow_active = true`. Sert uniquement à ouvrir le tunnel SSH ci-dessous — aucune interface n'est jamais exposée directement sur cette IP."
+  value       = var.airflow_active ? scaleway_instance_ip.airflow[0].address : null
+}
+
+output "airflow_commande_tunnel" {
+  description = "Commande exacte pour atteindre l'interface web Airflow (port 8080 sur l'instance) depuis le poste de l'opérateur, sans jamais exposer ce port publiquement. Une fois le tunnel ouvert, l'interface est jointe sur http://localhost:8080 côté poste local."
+  value       = var.airflow_active ? "ssh -L 8080:127.0.0.1:8080 ubuntu@${scaleway_instance_ip.airflow[0].address}" : null
+}
