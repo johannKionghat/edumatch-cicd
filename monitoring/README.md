@@ -284,7 +284,7 @@ Détruire en même temps que le reste (voir README racine, section
 
 ## Ce qui n'a pas pu être vérifié ici
 
-Aucun cluster, aucun compte Scaleway disponibles dans cette session — rien
+Aucun cluster, aucun compte Scaleway disponibles à ce jour — rien
 de ce qui suit n'a été appliqué réellement.
 
 - **Validation faite** : chaque fichier YAML de ce dossier (y compris le

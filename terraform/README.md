@@ -169,12 +169,12 @@ fichier pour que la correction reste rapide :
 - **Les noms d'attributs `ip_id` et le bloc `private_network` sur
   `scaleway_instance_server`**, ainsi que `stateful` sur
   `scaleway_instance_security_group`, dans la version 2.83.0 du provider —
-  non exécutés faute de binaire Terraform dans cette session, à confirmer
+  non exécutés faute de binaire Terraform à ce jour, à confirmer
   par `terraform validate`.
 
 `terraform fmt` a été appliqué manuellement (indentation à deux espaces,
 alignement des `=`) aux fichiers existant avant l'ajout d'`airflow.tf` ;
-faute de binaire Terraform dans cette session, ni `terraform fmt` ni
+faute de binaire Terraform à ce jour, ni `terraform fmt` ni
 `terraform validate` n'ont pu être exécutés sur `airflow.tf` et
 `cloud-init/airflow.yaml`. Les deux commandes sont à lancer avant `plan`, dès
 que Terraform est disponible sur le poste qui exécutera réellement le
@@ -194,7 +194,7 @@ terraform validate
 | Bucket Object Storage (quelques centaines de Mo) | Négligeable (tarif au Go stocké, très en dessous du seuil facturé en pratique) |
 
 Avec un pool à 1 nœud pendant la préparation et 2 pendant la démonstration
-filmée, une session de quelques heures coûte de l'ordre de quelques dizaines
+filmée, une séance de quelques heures coûte de l'ordre de quelques dizaines
 de centimes d'euro — mais seulement si le cluster est détruit ensuite. Un
 cluster oublié une semaine coûte de l'ordre de 15 à 30 EUR pour rien : c'est
 exactement l'erreur d'exploitation que la règle de coût interdit.

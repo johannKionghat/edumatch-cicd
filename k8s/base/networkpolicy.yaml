@@ -4,7 +4,7 @@
 # seules les entrées explicitement listées ci-dessous sont autorisées, tout
 # le reste est refusé.
 #
-# Non vérifié dans cette session : que le CNI Cilium (choisi dans
+# Non vérifié à ce jour : que le CNI Cilium (choisi dans
 # terraform/main.tf) applique bien les `NetworkPolicy` standard sans
 # configuration additionnelle — c'est son comportement documenté par
 # défaut, mais je n'ai pas de cluster pour l'observer.

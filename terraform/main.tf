@@ -118,7 +118,7 @@ resource "scaleway_object_bucket" "artefacts" {
   }
 }
 
-# Non vérifié dans cette session (pas de `terraform` ni de compte Scaleway
+# Non vérifié à ce jour (pas de `terraform` ni de compte Scaleway
 # disponibles ici) : que l'argument `acl` soit toujours porté directement par
 # `scaleway_object_bucket` dans la version 2.83.0 du provider, plutôt que par
 # une ressource séparée `scaleway_object_bucket_acl` (le schéma a bougé dans

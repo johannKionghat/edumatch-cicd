@@ -6,7 +6,7 @@
 # En résumé : la pile Airflow de référence exige au moins 4 Go de mémoire à
 # elle seule, alors que le pool Kapsule a déjà 2 368 Mi réservés par l'API et
 # le monitoring sur une capacité brute de 8 192 Mi — avant même le pic de la
-# tâche Spark qui agrège Sirene. Et l'exécuteur Kubernetes d'Airflow
+# tâche d'agrégation Sirene en Polars. Et l'exécuteur Kubernetes d'Airflow
 # suppose un partage de fichiers entre pods que le stockage bloc Scaleway,
 # en accès exclusif à un seul nœud (ReadWriteOnce), ne permet pas sans
 # réécrire toutes les entrées-sorties du pipeline vers le stockage objet.
@@ -108,7 +108,7 @@ resource "scaleway_instance_server" "airflow" {
   zone  = var.zone
   tags  = ["edumatch", "airflow", var.environnement]
 
-  # NON VÉRIFIÉ DANS CETTE SESSION (pas de compte Scaleway, pas de binaire
+  # NON VÉRIFIÉ À CE JOUR (pas de compte Scaleway, pas de binaire
   # `scw` disponible ici) : le libellé exact de l'image Ubuntu LTS proposée
   # par le catalogue d'images Scaleway au moment du premier `apply`. Le nom
   # ci-dessous suit la convention observée dans la documentation publique
@@ -141,7 +141,7 @@ resource "scaleway_instance_server" "airflow" {
   }
 }
 
-# Non vérifié dans cette session : le nom exact de l'attribut de rattachement
+# Non vérifié à ce jour : le nom exact de l'attribut de rattachement
 # réseau (`private_network { pn_id = ... }`) et l'attribut `ip_id` sur
 # `scaleway_instance_server` dans la version 2.83.0 du provider — comme pour
 # les autres points déjà signalés dans `main.tf` et `terraform/README.md`,

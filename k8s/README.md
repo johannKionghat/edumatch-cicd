@@ -115,7 +115,7 @@ elle ne bloque jamais un déploiement si le pool est réduit à un seul nœud
 ## Ce qui n'a pas pu être vérifié ici
 
 Ni `terraform apply` ni `kubectl apply` n'ont été exécutés : aucun cluster
-n'existe. La validation faite dans cette session :
+n'existe. La validation faite à ce jour :
 
 - Syntaxe YAML de chaque fichier, vérifiée par un chargeur YAML standard —
   tous valides.

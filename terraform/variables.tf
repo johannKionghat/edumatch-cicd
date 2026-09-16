@@ -73,7 +73,7 @@ variable "pool_taille_max" {
     nœud DEV1-M (4 Go) peut porter plusieurs réplicas de 256-512 Mi chacun
     sans qu'un nœud par pod soit nécessaire. 2 nœuds suffisent à accueillir
     6 pods edumatch-serve avec la marge système ; ce n'est pas mesuré sous
-    charge réelle (pas de cluster disponible dans cette session), donc une
+    charge réelle (pas de cluster disponible à ce jour), donc une
     valeur prudente plutôt qu'optimisée à l'unité près.
   EOT
   type        = number
@@ -88,11 +88,11 @@ variable "type_instance_airflow" {
     edumatch-ia). DEV1-L (4 vCPU, 8 Go de RAM) retenu : la documentation
     Airflow 2.9.3 demande au moins 4 Go pour la pile Compose de référence
     (base de métadonnées, ordonnanceur, serveur web) ; 8 Go laissent de la
-    marge pour la tâche Spark d'agrégation Sirene, qui s'exécute dans le
+    marge pour la tâche d'agrégation Sirene en Polars, qui s'exécute dans le
     même conteneur travailleur. DEV1-M (4 Go) a été écarté : il correspond
     exactement au plancher documenté pour Airflow seul, sans aucune marge.
     DEV1-XL (12 Go) reste le repli si la mesure du pic mémoire de la tâche
-    Spark l'exige (voir l'ADR, section "Mesures à faire au premier
+    d'agrégation l'exige (voir l'ADR, section "Mesures à faire au premier
     lancement"). Prix constaté sur la page tarifaire publique de Scaleway le
     2026-09-15 : environ 0,04284 EUR/heure (~31,27 EUR/mois si l'instance
     tournait un mois complet — elle ne tourne que pendant les séances de
@@ -140,10 +140,11 @@ variable "taille_volume_airflow_go" {
     mesurées sur le poste de développement pèsent environ 4,7 Go
     (`data/raw/sirene` 4,4 Go, le reste très en dessous), auxquels s'ajoutent
     les images Docker tirées du registre et les fichiers temporaires de
-    Spark pendant l'agrégation — non mesurés précisément, d'où une marge
-    large plutôt qu'un dimensionnement à l'unité près. Prix constaté sur la
-    page tarifaire publique de Scaleway le 2026-09-15 pour du stockage bloc
-    5K : environ 0,000130 EUR/Go/heure, soit environ 5,70 EUR pour 60 Go sur
+    l'agrégation Polars pendant son exécution — non mesurés précisément,
+    d'où une marge large plutôt qu'un dimensionnement à l'unité près. Prix
+    constaté sur la page tarifaire publique de Scaleway le 2026-09-15 pour
+    du stockage bloc 5K : environ 0,000130 EUR/Go/heure, soit environ 5,70
+    EUR pour 60 Go sur
     un mois complet.
   EOT
   type        = number

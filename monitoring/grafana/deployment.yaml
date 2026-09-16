@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: grafana
-          # Tag non vérifié contre Docker Hub dans cette session — même
+          # Tag non vérifié contre Docker Hub à ce jour — même
           # réserve que les autres images de ce dossier.
           image: grafana/grafana:11.2.0
           ports:

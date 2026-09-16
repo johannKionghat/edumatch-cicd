@@ -40,7 +40,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: prometheus
-          # Tag non vérifié contre Docker Hub dans cette session (pas de
+          # Tag non vérifié contre Docker Hub à ce jour (pas de
           # connexion réseau sortante vérifiable ici) — même limite déjà
           # signalée pour amazon/aws-cli dans k8s/README.md, à reconfirmer
           # avant le premier déploiement réel.
@@ -54,8 +54,8 @@ spec:
             - name: http
               containerPort: 9090
           resources:
-            # Non mesuré sous charge réelle (pas de cluster disponible dans
-            # cette session) : ordre de grandeur pour un seul job scrapé
+            # Non mesuré sous charge réelle (pas de cluster disponible à
+            # ce jour) : ordre de grandeur pour un seul job scrapé
             # (edumatch-serve, jusqu'à 6 cibles) sur une rétention de 6h.
             requests:
               cpu: 100m

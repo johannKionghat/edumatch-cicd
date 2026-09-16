@@ -62,7 +62,7 @@ terraform {
   }
 }
 
-# Non vérifié dans cette session : le comportement exact de `use_lockfile`
+# Non vérifié à ce jour : le comportement exact de `use_lockfile`
 # et de `use_path_style` contre le point de terminaison Object Storage de
 # Scaleway. Documenté d'après la note de version Terraform 1.10 et la
 # documentation Scaleway sur la compatibilité S3, pas exécuté ici faute

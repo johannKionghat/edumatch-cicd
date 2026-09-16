@@ -66,10 +66,13 @@ dans ce fichier, pas encore collé), le tableau de bord reste vide.
 | `deploy.yml` | manuel, ou sur étiquette (tag) d'edumatch-ia | Applique les manifestes de `k8s/base/` sur le cluster de démonstration Kapsule, après vérification qu'ils existent |
 
 `edumatch-airflow` est construit depuis `edumatch-ia/docker/Dockerfile.airflow`.
-Ce fichier est, à ce jour, en cours de correction côté edumatch-ia (ADR 0019 :
-il lui manque une machine virtuelle Java et l'extra `[spark]`, nécessaires à
-la tâche d'agrégation Sirene) — `build-images.yml` le construira tel qu'il
-existe au commit demandé, sans jugement sur son contenu.
+L'image n'embarque **ni machine virtuelle Java ni extra `[spark]`** : les
+ajouter cassait le cœur d'Airflow 2.9.3 (conflit de versions de SQLAlchemy et
+de pandas avec le paquet du projet), et la tâche d'agrégation Sirene tourne en
+production avec le moteur Polars (`moteur_volume: local`). Elle embarque ses
+DAG, sa configuration et `libgomp1`, nécessaire à LightGBM. Le détail est dans
+l'ADR 0019 d'edumatch-ia, section « Amendement du 2026-09-15 ».
+`build-images.yml` construit ce fichier tel qu'il existe au commit demandé.
 
 Aucun des trois ne se déclenche sur chaque poussée vers le cluster de
 démonstration : voir la règle de coût plus bas.
@@ -198,9 +201,10 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
    `terraform/cloud-init/airflow.yaml`, image `edumatch-airflow` dans
    `build-images.yml`~~ — fait, voir `terraform/README.md`, section
    "L'instance Airflow". Reste bloquant côté `edumatch-ia`, listé dans
-   l'ADR 0019 lui-même : la correction de `docker/Dockerfile.airflow`
-   (machine virtuelle Java, extra `[spark]`), `docker-compose.prod.yml`, et
-   les scripts de démonstration de panne.
+   l'ADR 0019 lui-même : `docker-compose.prod.yml` et les scripts de
+   démonstration de panne. La correction de `docker/Dockerfile.airflow` est
+   faite, sans Java ni `[spark]` (ADR 0019, section « Amendement du
+   2026-09-15 »).
 5. Câblage du déclenchement automatique (section ci-dessus).
 6. Panne provoquée et reprise, filmée (E39) — une fois le cluster et l'API
    effectivement déployés au moins une fois, avec le monitoring en place
@@ -211,7 +215,7 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
 
 ## Infrastructure de démonstration — la séquence de bout en bout
 
-Rien de ce qui suit n'a été exécuté dans cette session : ni compte Scaleway
+Rien de ce qui suit n'a été exécuté à ce jour : ni compte Scaleway
 ni binaire Terraform n'étaient disponibles pour le faire. Cette séquence est
 la lecture manuelle, ligne par ligne, de ce que `terraform/` et `k8s/base/`
 demandent — à exécuter par le candidat, dans cet ordre exact, en lisant
@@ -339,7 +343,7 @@ l'erreur d'exploitation que la règle de coût interdit.
 
 ### Coût de la séquence complète
 
-De l'ordre de quelques dizaines de centimes d'euro pour une session de
+De l'ordre de quelques dizaines de centimes d'euro pour une séance de
 préparation et de démonstration de quelques heures (voir le détail par poste
 dans `terraform/README.md`) — à condition de détruire à l'étape 5. Un cluster
 laissé actif coûte de l'ordre de 15 à 30 EUR pour un mois oublié, pour un

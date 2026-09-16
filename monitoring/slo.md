@@ -52,7 +52,7 @@ supplémentaire :
 > **Budget d'erreur de latence = 5 % des requêtes `/matching` peuvent
 > dépasser 300 ms sans que le SLO soit considéré violé.**
 
-Concrètement, sur une session de démonstration de 1 000 appels à
+Concrètement, sur une séance de démonstration de 1 000 appels à
 `/matching`, jusqu'à 50 peuvent dépasser 300 ms avant que le SLO ne soit
 franchi — c'est cette marge que `EdumatchLatenceP95Elevee` (`prometheus/alerts.yaml`)
 surveille en continu, pas la moyenne.
@@ -110,7 +110,7 @@ est grave.
 
 Ces deux objectifs sont posés sur un raisonnement (taille du service, absence
 de redondance multi-zone, nature de la charge), pas mesurés sous trafic réel
-— aucun cluster n'a existé pendant cette session. Ils sont à confronter aux
+— aucun cluster n'a existé à ce jour. Ils sont à confronter aux
 premières mesures réelles après le premier déploiement, et à ajuster si le
 p95 réel au repos dépasse déjà 300 ms sans charge (auquel cas le problème
 serait dans le dimensionnement `requests`/`limits`, pas dans le SLO).

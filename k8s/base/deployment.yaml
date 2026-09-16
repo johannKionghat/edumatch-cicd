@@ -99,7 +99,7 @@ spec:
         # par le HPA) est exactement la dette que ce mécanisme documente
         # comme non souhaitable en production.
         #
-        # Image et version non vérifiées dans cette session (pas de registre
+        # Image et version non vérifiées à ce jour (pas de registre
         # interrogeable ici) : à reconfirmer avant le premier déploiement
         # réel — un seul endroit à corriger si le tag n'existe pas.
         - name: recuperer-artefacts
@@ -197,7 +197,7 @@ spec:
           # devrait rester proche de `requests`, avec de la marge (`limits`)
           # pour un pic de requêtes concurrentes sans expulsion immédiate.
           #
-          # Valeurs non mesurées sous charge réelle dans cette session (pas
+          # Valeurs non mesurées sous charge réelle à ce jour (pas
           # de cluster disponible) : ordre de grandeur posé à partir de
           # l'empreinte connue d'un processus FastAPI + pandas + LightGBM +
           # SHAP chargés en mémoire (bibliothèques importées, catalogue de

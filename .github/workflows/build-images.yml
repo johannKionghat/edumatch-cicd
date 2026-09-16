@@ -3,10 +3,10 @@ name: Construction et publication des images
 # Construit les trois images définies dans edumatch-ia/docker/ (Dockerfile.train,
 # Dockerfile.serve, Dockerfile.airflow — multi-étages, utilisateur non-root, cf.
 # commentaires de ces fichiers) et les publie sur le registre de conteneurs
-# Scaleway. Dockerfile.airflow est en cours de correction côté edumatch-ia au
-# moment de l'écriture de ce workflow (ADR 0019 : machine virtuelle Java et
-# extra [spark] manquants) — ce fichier-ci ne le modifie pas, il se contente de
-# le construire tel qu'il existe au commit demandé.
+# Scaleway. Dockerfile.airflow n'embarque ni machine virtuelle Java ni extra
+# [spark] : l'agrégat Sirene tourne en Polars en production (ADR 0019 d'edumatch-ia,
+# section « Amendement du 2026-09-15 »). Ce fichier-ci ne le modifie pas, il se
+# contente de le construire tel qu'il existe au commit demandé.
 #
 # Tag = empreinte courte du commit edumatch-ia (`git rev-parse --short HEAD`),
 # jamais `latest` : un tag `latest` en production empêche de savoir ce qui
