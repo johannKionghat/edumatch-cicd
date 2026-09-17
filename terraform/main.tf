@@ -96,7 +96,7 @@ resource "scaleway_registry_namespace" "edumatch" {
 
 # ─── Object Storage : artefacts du modèle ────────────────────────────────
 #
-# Le catalogue de prédictions et le précalcul SHAP (E22, E25 côté
+# Le catalogue de prédictions et le précalcul SHAP (côté
 # edumatch-ia — quelques dizaines à ~100 Mo à eux deux) sont déposés ici
 # après `make train` / `make explain`, puis récupérés par un conteneur
 # d'initialisation au démarrage de chaque pod edumatch-serve (voir

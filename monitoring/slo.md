@@ -28,7 +28,7 @@ l'usage réel (recommandation pour un profil), celle que `configs/base.yaml`
 (`api.slo_latence_p95_ms`) chiffre déjà côté edumatch-ia. `/health` répond en
 quelques microsecondes par construction (aucune dépendance lourde, voir son
 docstring) et ne dirait rien de la charge réelle. `/explain` sert des
-explications précalculées (E25 — SHAP par cellule, servi depuis le stockage,
+explications précalculées (SHAP par cellule, servi depuis le stockage,
 jamais recalculé à la requête) : sa latence est structurellement plus basse
 et moins représentative de la charge que `/matching`, qui filtre et score le
 catalogue à chaque appel.

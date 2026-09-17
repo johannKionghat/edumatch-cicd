@@ -1,4 +1,4 @@
-# Adaptation automatique du nombre de réplicas à la charge (E37, critère
+# Adaptation automatique du nombre de réplicas à la charge (critère
 # 2.4/2.6) : c'est ce qui matérialise l'argument de saisonnalité du dossier,
 # pas seulement une affirmation. Sans ce fichier, "il y a un rapport de 1 à 6
 # entre le pic de janvier-mai et le creux estival" resterait une phrase de

@@ -1,4 +1,4 @@
-# Règles d'alerte — le critère de cette étape (E38) est qu'elles soient
+# Règles d'alerte — le critère du monitoring est qu'elles soient
 # ACTIONNABLES : chaque alerte porte ce qui se passe, pourquoi c'est grave,
 # et quoi faire (champ `action`, lu par la personne d'astreinte, pas
 # seulement par un tableau de bord). Cinq alertes, pas davantage : une
@@ -12,7 +12,7 @@
 # expose un point `/metrics` interrogeable en continu. L'ajouter ici
 # maintenant produirait une règle qui ne se déclenche jamais, faute de
 # métrique — l'inverse d'une alerte actionnable. Cette alerte rejoint ce
-# fichier le jour où le DAG Airflow de réentraînement (E33) pousse son
+# fichier le jour où le DAG Airflow de réentraînement pousse son
 # résultat vers un Pushgateway ou expose lui-même `/metrics` sur le
 # cluster ; jusque-là, le seuil reste appliqué et documenté côté
 # edumatch-ia, pas simulé ici.

@@ -206,7 +206,7 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
    faite, sans Java ni `[spark]` (ADR 0019, section « Amendement du
    2026-09-15 »).
 5. Câblage du déclenchement automatique (section ci-dessus).
-6. Panne provoquée et reprise, filmée (E39) — une fois le cluster et l'API
+6. Panne provoquée et reprise, filmée — une fois le cluster et l'API
    effectivement déployés au moins une fois, avec le monitoring en place
    pour observer l'alerte se déclencher puis se résorber. Pour le pipeline,
    la panne se filme sur l'instance Airflow (voir l'ADR 0019, section
@@ -298,7 +298,7 @@ kubectl port-forward -n edumatch svc/edumatch-serve 8000:80
 curl http://localhost:8000/health
 ```
 Ouvrir `http://localhost:8000/` dans un navigateur pour l'écran conseiller
-(E31), ou appeler `/matching` directement — c'est le moment de filmer la
+(l'écran de supervision du conseiller), ou appeler `/matching` directement — c'est le moment de filmer la
 vidéo de production exigée par les blocs 2 et 4.
 
 ### 4bis. Instance Airflow (ADR 0019) — séquence propre, indépendante du cluster

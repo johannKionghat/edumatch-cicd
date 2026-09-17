@@ -20,7 +20,7 @@ fichiers `.yaml`/`.yml` de `k8s/base/` avant de les appliquer :
 `__EDUMATCH_SERVE_IMAGE__` apparaît dans `base/deployment.yaml`.
 `__EDUMATCH_TRAIN_IMAGE__` n'apparaît dans aucun fichier à ce stade : rien ne
 consomme encore l'image d'entraînement sur ce cluster — Airflow, qui
-orchestre l'entraînement (E33), tourne aujourd'hui en local via
+orchestre l'entraînement, tourne aujourd'hui en local via
 `docker-compose.yml` côté edumatch-ia, pas sur Kapsule. Faire tourner
 l'entraînement sur le cluster de démonstration (un `CronJob` Kubernetes, ou
 un `KubernetesPodOperator` déclenché par un Airflow lui-même déployé sur le

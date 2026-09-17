@@ -44,7 +44,7 @@ spec:
           port: 53
     # HTTPS sortant : nécessaire à la fois au conteneur d'initialisation
     # (récupération des artefacts sur Object Storage) et, optionnellement,
-    # à l'API elle-même (assistant RAG, E32, s'il appelle l'API Mistral —
+    # à l'API elle-même (assistant RAG, s'il appelle l'API Mistral —
     # voir MISTRAL_API_KEY dans deployment.yaml). Restreint au port 443
     # plutôt qu'à "tout port sortant", mais pas à des adresses IP précises :
     # Object Storage et l'API Mistral n'ont pas d'adresse IP stable

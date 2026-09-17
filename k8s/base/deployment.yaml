@@ -1,4 +1,4 @@
-# Déploiement de l'API de matching (E29 côté edumatch-ia), en réplicas
+# Déploiement de l'API de matching (côté edumatch-ia), en réplicas
 # identiques et interchangeables — aucun état local, voir le docstring de
 # docker/Dockerfile.serve. L'image est référencée par le jeton
 # __EDUMATCH_SERVE_IMAGE__, substitué par deploy.yml avant application (voir
@@ -166,7 +166,7 @@ spec:
             - configMapRef:
                 name: edumatch-serve-config
           env:
-            # Optionnelle : la brique RAG (E32) ne se charge qu'à la
+            # Optionnelle : la brique RAG ne se charge qu'à la
             # première requête POST /assistant si cette variable est
             # renseignée (voir edumatch-ia, rag/generation.py) ; son absence
             # ne fait pas échouer l'API. `optional: true` évite un

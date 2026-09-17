@@ -1,4 +1,4 @@
-# Monitoring — Prometheus, Alertmanager, Grafana (E38)
+# Monitoring — Prometheus, Alertmanager, Grafana
 
 Sert les critères 2.8 (surveillance : métriques, alertes, incidents) et 4.13
 (monitoring en production : performance, latence, alertes). Cible le
@@ -323,7 +323,7 @@ de ce qui suit n'a été appliqué réellement.
   est mesuré et documenté côté `edumatch-ia` (ADR 0018), mais tourne
   aujourd'hui comme un rapport batch (`make derive`), pas comme un processus
   qui expose une métrique consultable en continu. L'alerte rejoindra
-  `prometheus/alerts.yaml` le jour où le DAG Airflow de réentraînement (E33)
+  `prometheus/alerts.yaml` le jour où le DAG Airflow de réentraînement
   pousse ce résultat vers un Pushgateway (ou expose lui-même `/metrics`) sur
   le cluster — pas avant, pour ne pas écrire une règle qui ne se déclenche
   jamais faute de métrique.
@@ -333,7 +333,7 @@ de ce qui suit n'a été appliqué réellement.
   et dans Grafana ; brancher un vrai récepteur est documenté dans le
   commentaire du fichier, pas fait ici faute de canal réel pour ce projet de
   certification.
-- **La panne provoquée et sa reprise, filmées (E39)** : ce dossier fournit
+- **La panne provoquée et sa reprise, filmées** : ce dossier fournit
   l'instrumentation qui permettra de voir, en direct, une alerte se
   déclencher puis se résoudre — l'exercice lui-même (couper un pod, saturer
   le CPU, observer `EdumatchAucunReplicaDisponible` se déclencher puis se

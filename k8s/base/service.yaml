@@ -1,5 +1,5 @@
 # Adresse stable pour les pods edumatch-serve, quel que soit leur nombre ou
-# leur identité (E37, critère 2.6). `ClusterIP` (la valeur par défaut,
+# leur identité (critère 2.6). `ClusterIP` (la valeur par défaut,
 # explicitée ici) plutôt qu'un `LoadBalancer` : un `LoadBalancer` Scaleway
 # provisionne une ressource facturée en continu tant qu'elle existe, pour un
 # besoin qui ne se présente que pendant une démonstration filmée de quelques

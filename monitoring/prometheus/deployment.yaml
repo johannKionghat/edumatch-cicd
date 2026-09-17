@@ -11,7 +11,7 @@
 # coût). Conséquence assumée : l'historique des métriques disparaît à
 # chaque redémarrage du pod Prometheus, ou à la destruction du cluster —
 # acceptable pour observer un incident PENDANT une démonstration filmée
-# (E39), pas pour une analyse de tendance sur plusieurs semaines.
+# (panne provoquée puis reprise), pas pour une analyse de tendance sur plusieurs semaines.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
