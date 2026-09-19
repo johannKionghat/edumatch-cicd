@@ -20,6 +20,11 @@ credentials*.json
 .terraform/
 *.tfstate
 *.tfstate.*
+# Un fichier de plan (`terraform plan -out=…`) contient les valeurs résolues de
+# la configuration, sensibles comprises : il se lit, il s'applique, il ne se
+# versionne jamais.
+*.tfout
+*.tfplan
 terraform.tfplan
 
 # ─── Système ────────────────────────────────────────────────────────
@@ -29,3 +34,7 @@ Thumbs.db
 # ─── Éditeurs ───────────────────────────────────────────────────────
 .vscode/
 .idea/
+
+# ─── Python ─────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
