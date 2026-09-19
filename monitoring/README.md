@@ -21,7 +21,7 @@ Cette section est délibérément la seule de tout ce dépôt CI/CD à décrire 
 code destiné à un autre dépôt : `edumatch-cicd` ne modifie jamais
 `edumatch-ia`, mais le monitoring de l'un ne peut pas exister sans un geste
 minimal dans l'autre. Le geste est décrit ici, textuellement, prêt à être
-collé — pas fait à la place du candidat.
+collé.
 
 ### 1. Dépendance — `edumatch-ia/pyproject.toml`
 

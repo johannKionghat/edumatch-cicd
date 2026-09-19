@@ -72,8 +72,7 @@ Le cluster Kapsule héberge l'API, dont la charge suit la campagne de vœux
 cadence différente — annuelle, mensuelle, quotidienne selon le DAG — et n'a
 aucun pic concurrent à absorber : il n'a pas besoin d'un cluster élastique.
 La décision complète, avec les chiffres de mémoire qui l'ont emportée sur
-« Airflow sur Kapsule », est dans l'ADR 0019 côté edumatch-ia
-(`docs/sous-docs-projets/adr/0019-airflow-en-production-sur-instance-dediee.md`).
+« Airflow sur Kapsule », est dans l'ADR 0019, côté edumatch-ia (`docs/decisions.html`).
 
 Toutes les ressources de `airflow.tf` sont conditionnées par
 `var.airflow_active` (`false` par défaut) : l'instance n'existe, et ne se

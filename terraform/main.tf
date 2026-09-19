@@ -85,9 +85,8 @@ resource "scaleway_k8s_pool" "demo" {
 # n'a pas pu être vérifié ici" → variable SCW_REGISTRY_ENDPOINT), ce bloc
 # entrerait en conflit avec lui : soit l'importer dans l'état Terraform
 # (`terraform import scaleway_registry_namespace.edumatch <id>`), soit le
-# supprimer côté console et laisser Terraform le recréer. Je ne peux pas
-# trancher à la place du candidat sans savoir lequel des deux a été fait
-# concrètement — décision à prendre avant le premier `apply`, voir README.
+# supprimer côté console et laisser Terraform le recréer. Je tranche au vu
+# de l'état réel du compte, avant le premier `apply` — voir README.
 resource "scaleway_registry_namespace" "edumatch" {
   name      = var.nom_projet
   is_public = false

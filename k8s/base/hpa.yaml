@@ -20,7 +20,7 @@ spec:
   # - `maxReplicas: 6` matérialise la DEMANDE : le rapport de charge mesuré
   #   entre le pic de la période de vœux Parcoursup (janvier-mai) et le
   #   creux estival est de l'ordre de 1 à 6 (environ 30 % d'utilisation
-  #   moyenne en dimensionnement fixe, voir docs/sous-docs-projets côté
+  #   moyenne en dimensionnement fixe, voir docs/decisions.html côté
   #   edumatch-ia). 6 est le nombre de réplicas nécessaires pour absorber le
   #   pic, sans dimensionner en permanence pour lui (ce que ferait un
   #   `replicas: 6` fixe, gaspillant environ 70 % de la capacité le reste de
