@@ -46,7 +46,9 @@ edumatch-cicd/
 │   └── deploy.yml          déploiement des manifestes sur Kapsule (démonstration)
 ├── terraform/               infrastructure as code — cluster Kapsule, réseau, registre, bucket
 ├── k8s/                      manifestes Kubernetes — Deployment, Service, HPA, sécurité
-└── monitoring/               Prometheus, Alertmanager, Grafana — SLO déclaré, alertes actionnables
+├── monitoring/               Prometheus, Alertmanager, Grafana — SLO déclaré, alertes actionnables
+├── scripts/deploiement.py   point d'entrée unique du déploiement Scaleway (voir scripts/README.md)
+└── scaleway.env.example     gabarit des variables Scaleway, jamais de valeur réelle
 ```
 
 `terraform/`, `k8s/` et `monitoring/` sont désormais remplis — voir le
@@ -87,7 +89,7 @@ dépôt où il vit, donc un fichier doit exister côté edumatch-ia pour relayer
 l'événement ici.
 
 Contenu à créer dans `edumatch-ia/.github/workflows/notifier-cicd.yml`
-(à faire par le candidat — ce dépôt-ci ne modifie jamais edumatch-ia) :
+(à créer côté edumatch-ia — ce dépôt-ci ne le modifie jamais) :
 
 ```yaml
 name: Notifier edumatch-cicd
@@ -213,12 +215,34 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
    "Comment la panne sera montrée dans cet environnement"), pas sur le
    cluster Kapsule.
 
-## Infrastructure de démonstration — la séquence de bout en bout
+## Infrastructure de démonstration — le script d'automatisation
 
-Rien de ce qui suit n'a été exécuté à ce jour : ni compte Scaleway
-ni binaire Terraform n'étaient disponibles pour le faire. Cette séquence est
-la lecture manuelle, ligne par ligne, de ce que `terraform/` et `k8s/base/`
-demandent — à exécuter par le candidat, dans cet ordre exact, en lisant
+Le déploiement se pilote désormais par un seul point d'entrée,
+`scripts/deploiement.py` (bibliothèque standard Python 3.11, aucune
+dépendance à installer) : voir `scripts/README.md` pour la séquence en cinq
+lignes et le détail de chaque sous-commande. Il exécute ce que la séquence
+manuelle ci-dessous décrit en prose, avec les mêmes garde-fous — jamais
+d'application d'un plan non lu, jamais de destruction sans confirmation,
+aucun secret journalisé.
+
+```bash
+cp scaleway.env.example scaleway.env   # puis y coller les vraies valeurs (jamais commité)
+python scripts/deploiement.py tout
+python scripts/deploiement.py appliquer     # après avoir lu le plan
+python scripts/deploiement.py kubeconfig && python scripts/deploiement.py secrets-k8s
+python scripts/deploiement.py deployer --image-tag <empreinte-commit> && python scripts/deploiement.py monitoring
+```
+
+La séquence manuelle ci-dessous reste la référence détaillée — ce que le
+script exécute concrètement, commande par commande, utile pour comprendre
+ou dépanner une étape précise.
+
+### Rien de tout cela n'a été exécuté en conditions réelles
+
+Ni compte Scaleway ni binaire Terraform n'étaient disponibles au moment
+d'écrire ce document et le script. La séquence qui suit est la lecture
+manuelle, ligne par ligne, de ce que `terraform/` et `k8s/base/`
+demandent — à exécuter dans cet ordre exact, en lisant
 chaque sortie avant de continuer (jamais un `plan`/`apply` enchaînés sans
 relecture).
 
@@ -347,5 +371,5 @@ De l'ordre de quelques dizaines de centimes d'euro pour une séance de
 préparation et de démonstration de quelques heures (voir le détail par poste
 dans `terraform/README.md`) — à condition de détruire à l'étape 5. Un cluster
 laissé actif coûte de l'ordre de 15 à 30 EUR pour un mois oublié, pour un
-budget de projet qui est celui d'une startup en amorçage : c'est le candidat
-qui paie, pas un budget d'entreprise.
+budget de projet qui est celui d'une startup en amorçage : c'est moi qui
+paie, pas un budget d'entreprise.
