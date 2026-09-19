@@ -35,9 +35,25 @@ variable "environnement" {
 }
 
 variable "version_kubernetes" {
-  description = "Version mineure de Kubernetes demandée au cluster Kapsule. Non vérifiée contre la liste des versions réellement proposées par Scaleway aujourd'hui (pas de compte pour interroger `scw k8s version list`) : à confirmer avant le premier `apply`, voir README."
+  description = <<-EOT
+    Version de Kubernetes du cluster Kapsule, épinglée jusqu'au correctif.
+    L'API refuse une version mineure seule ("1.36") si la mise à jour
+    automatique n'est pas activée : un cluster dont la version bouge toute
+    seule n'est plus reproductible à l'identique, et c'est exactement ce que
+    la démonstration doit garantir. J'épingle donc le correctif complet.
+
+    1.36.4 retenue sur les quatre versions proposées (`scw k8s version list
+    region=fr-par`) : 1.37.0 est la plus récente, mais je préfère l'avant-
+    dernière mineure, déjà en service depuis plusieurs mois. 1.34.11 est
+    écartée — sa dépréciation est annoncée pour fin septembre 2026, soit
+    avant même la fin de la période de démonstration. 1.36.4 est supportée
+    jusqu'en septembre 2027.
+
+    À revérifier avant chaque recréation du cluster : le catalogue évolue et
+    une version en fin de vie finit par disparaître de la liste.
+  EOT
   type        = string
-  default     = "1.30"
+  default     = "1.36.4"
 }
 
 variable "type_noeud" {

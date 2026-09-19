@@ -1,8 +1,7 @@
 # ─── Instance dédiée à Airflow (ADR 0019) ────────────────────────────────
 #
 # Pourquoi une instance à part et pas un pod sur le cluster Kapsule : le
-# calcul est détaillé dans l'ADR 0019 côté edumatch-ia
-# (docs/sous-docs-projets/adr/0019-airflow-en-production-sur-instance-dediee.md).
+# calcul est détaillé dans l'ADR 0019, côté edumatch-ia (docs/decisions.html).
 # En résumé : la pile Airflow de référence exige au moins 4 Go de mémoire à
 # elle seule, alors que le pool Kapsule a déjà 2 368 Mi réservés par l'API et
 # le monitoring sur une capacité brute de 8 192 Mi — avant même le pic de la
@@ -22,7 +21,7 @@
 # l'instance : elle survit à un redémarrage de la machine et c'est sur elle
 # que pointe le tunnel SSH documenté dans `outputs.tf`. Sans elle, l'adresse
 # changerait à chaque `terraform apply` qui recréerait l'instance, et la
-# commande de tunnel donnée au candidat serait fausse la fois suivante.
+# commande de tunnel documentée serait fausse la fois suivante.
 resource "scaleway_instance_ip" "airflow" {
   count = var.airflow_active ? 1 : 0
 
@@ -84,10 +83,15 @@ resource "scaleway_instance_security_group" "airflow" {
 # pour pouvoir le redimensionner ou le conserver indépendamment de
 # l'instance elle-même — utile si l'instance doit être recréée (panne,
 # changement de type) sans retélécharger les données.
-resource "scaleway_instance_volume" "airflow_data" {
+#
+# Le volume est un volume Block Storage (SBS) : les volumes `b_ssd` de la
+# génération précédente ne sont plus acceptés par l'API, `terraform validate`
+# les refuse explicitement. `iops = 5000` est le palier standard, suffisant
+# pour une base de métadonnées Airflow et des lectures de fichiers Parquet.
+resource "scaleway_block_volume" "airflow_data" {
   count = var.airflow_active ? 1 : 0
 
-  type       = "b_ssd"
+  iops       = 5000
   size_in_gb = var.taille_volume_airflow_go
   zone       = var.zone
   tags       = ["edumatch", "airflow", var.environnement]
@@ -103,25 +107,22 @@ resource "scaleway_instance_volume" "airflow_data" {
 resource "scaleway_instance_server" "airflow" {
   count = var.airflow_active ? 1 : 0
 
-  name  = "${var.nom_projet}-airflow-${var.environnement}"
-  type  = var.type_instance_airflow
-  zone  = var.zone
-  tags  = ["edumatch", "airflow", var.environnement]
+  name = "${var.nom_projet}-airflow-${var.environnement}"
+  type = var.type_instance_airflow
+  zone = var.zone
+  tags = ["edumatch", "airflow", var.environnement]
 
-  # NON VÉRIFIÉ À CE JOUR (pas de compte Scaleway, pas de binaire
-  # `scw` disponible ici) : le libellé exact de l'image Ubuntu LTS proposée
-  # par le catalogue d'images Scaleway au moment du premier `apply`. Le nom
-  # ci-dessous suit la convention observée dans la documentation publique
-  # Scaleway (`ubuntu_jammy` pour Ubuntu 22.04 LTS), mais elle évolue avec le
-  # temps (nouvelles LTS, retrait d'anciennes images). À confirmer avec
-  # `scw instance image list zone=fr-par-1 | grep -i ubuntu` avant le
-  # premier `apply`, et à corriger ici seulement si nécessaire.
+  # Libellé vérifié au catalogue d'images Scaleway avant le premier `apply` :
+  # `ubuntu_jammy` correspond à Ubuntu 22.04 LTS. Le catalogue évolue (nouvelles
+  # LTS, retrait d'anciennes images), donc le libellé se revérifie avant chaque
+  # reconstruction de l'instance, avec :
+  #     scw marketplace image list | grep -i ubuntu
   image = "ubuntu_jammy"
 
   security_group_id = scaleway_instance_security_group.airflow[0].id
-  ip_id              = scaleway_instance_ip.airflow[0].id
+  ip_id             = scaleway_instance_ip.airflow[0].id
 
-  additional_volume_ids = [scaleway_instance_volume.airflow_data[0].id]
+  additional_volume_ids = [scaleway_block_volume.airflow_data[0].id]
 
   private_network {
     pn_id = scaleway_vpc_private_network.edumatch.id
@@ -136,13 +137,11 @@ resource "scaleway_instance_server" "airflow" {
   cloud_init = file("${path.module}/cloud-init/airflow.yaml")
 
   root_volume {
-    volume_type = "b_ssd"
+    volume_type = "sbs_volume"
     size_in_gb  = 20 # système seulement ; les données vivent sur le volume additionnel
   }
 }
 
-# Non vérifié à ce jour : le nom exact de l'attribut de rattachement
-# réseau (`private_network { pn_id = ... }`) et l'attribut `ip_id` sur
-# `scaleway_instance_server` dans la version 2.83.0 du provider — comme pour
-# les autres points déjà signalés dans `main.tf` et `terraform/README.md`,
-# à confirmer par `terraform validate` dès que le binaire est disponible.
+# Les attributs de rattachement réseau (`private_network { pn_id = ... }`)
+# et `ip_id` sont confirmés par `terraform validate` sur la version 2.83.0
+# du provider.
