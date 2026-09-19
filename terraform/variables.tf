@@ -64,10 +64,12 @@ variable "type_noeud" {
     edumatch-serve (~256-512 Mi chacun, voir k8s/base/deployment.yaml) sans
     tout occuper. DEV1-S (2 vCPU, 2 Go) a été écarté : sur un nœud à 2 Go, le
     système et un seul pod suffisent à laisser un HPA sans marge pour
-    scaler. Prix constaté sur la page tarifaire publique de Scaleway le
-    2026-09-15 : environ 0,0202 EUR/heure (~14,74 EUR/mois si le nœud
-    tournait un mois complet — il ne tourne que pendant les démonstrations,
-    voir la règle de coût).
+    scaler. Prix confirmé par l'API Scaleway le 2026-09-19 : 0,020196
+    EUR/heure, facturé 0,73 EUR pour les 36 heures de la démonstration du 18
+    au 19 septembre 2026. Soit 14,74 EUR/mois si le nœud tournait un mois
+    complet, plus son IPv4 (3,65 EUR) et son SSD local (1,58 EUR), facturés à
+    part — il ne tourne que pendant les démonstrations, voir la règle de
+    coût.
   EOT
   type        = string
   default     = "DEV1-M"
@@ -109,10 +111,10 @@ variable "type_instance_airflow" {
     exactement au plancher documenté pour Airflow seul, sans aucune marge.
     DEV1-XL (12 Go) reste le repli si la mesure du pic mémoire de la tâche
     d'agrégation l'exige (voir l'ADR, section "Mesures à faire au premier
-    lancement"). Prix constaté sur la page tarifaire publique de Scaleway le
-    2026-09-15 : environ 0,04284 EUR/heure (~31,27 EUR/mois si l'instance
-    tournait un mois complet — elle ne tourne que pendant les séances de
-    tournage, voir `airflow_active`).
+    lancement"). Prix confirmé par l'API Scaleway le 2026-09-19 : 0,04284
+    EUR/heure (31,27 EUR/mois si l'instance tournait un mois complet — elle
+    ne tourne que pendant les séances de tournage, voir `airflow_active`).
+    Aucun coût mesuré à ce jour : l'instance n'a jamais été créée.
   EOT
   type        = string
   default     = "DEV1-L"
@@ -141,8 +143,10 @@ variable "airflow_active" {
     (démonstration filmée, répétition). C'est la même règle de coût que le
     cluster Kapsule (voir terraform/README.md) appliquée à une ressource
     facturée à l'heure plutôt qu'au nœud d'un pool élastique — une
-    instance oubliée active coûte de l'ordre de 40 EUR par mois pour rien
-    (voir l'ADR 0019 pour le détail du calcul).
+    instance oubliée active coûterait de l'ordre de 40 EUR par mois pour
+    rien : 31,27 EUR d'instance au prix de l'API, plus IPv4 et volume. C'est
+    une estimation, pas une mesure — l'instance n'a jamais été créée (voir
+    l'ADR 0019 pour le détail du calcul).
   EOT
   type        = bool
   default     = false
@@ -158,10 +162,10 @@ variable "taille_volume_airflow_go" {
     les images Docker tirées du registre et les fichiers temporaires de
     l'agrégation Polars pendant son exécution — non mesurés précisément,
     d'où une marge large plutôt qu'un dimensionnement à l'unité près. Prix
-    constaté sur la page tarifaire publique de Scaleway le 2026-09-15 pour
-    du stockage bloc 5K : environ 0,000130 EUR/Go/heure, soit environ 5,70
-    EUR pour 60 Go sur
-    un mois complet.
+    relevé sur la page tarifaire publique de Scaleway le 2026-09-15 pour du
+    stockage bloc 5K, non mesuré puisque le volume n'a jamais été créé :
+    environ 0,000130 EUR/Go/heure, soit environ 5,70 EUR pour 60 Go sur un
+    mois complet.
   EOT
   type        = number
   default     = 60

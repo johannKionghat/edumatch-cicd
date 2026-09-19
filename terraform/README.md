@@ -114,19 +114,18 @@ terraform apply destroy-airflow.tfout
 
 ### Coût de l'instance Airflow, ordre de grandeur
 
-| Poste | Coût constaté sur la page tarifaire publique Scaleway (2026-09-15) |
-|---|---|
-| Instance DEV1-L (4 vCPU, 8 Go) | ≈ 0,04284 EUR/heure, ≈ 31,27 EUR/mois si elle tournait en permanence |
-| IPv4 flexible | ≈ 0,005 EUR/heure, ≈ 3,6 EUR/mois |
-| Volume bloc 60 Go (5K) | ≈ 5,70 EUR/mois si conservé un mois complet |
+L'instance n'a jamais été créée : aucun de ces chiffres n'est une mesure.
 
-Pour une séance de tournage de 6 heures : de l'ordre de **0,35 EUR**. Pour
-toute la période de préparation avant la certification, si l'instance reste
-allumée en continu (≈ 288 h) : de l'ordre de **16 EUR** — chiffres détaillés
-dans l'ADR 0019. Une instance oubliée active pendant un mois entier coûte de
-l'ordre de **40 EUR** pour rien : c'est exactement l'erreur d'exploitation
-que la règle de coût interdit, et `airflow_active = false` est le geste qui
-l'évite.
+| Poste | Prix | Source |
+|---|---|---|
+| Instance DEV1-L (4 vCPU, 8 Go) | 0,04284 EUR/heure, 31,27 EUR/mois en continu | API Scaleway (`scw instance server-type list`), 2026-09-19 |
+| IPv4 flexible | 0,005 EUR/heure, 3,65 EUR/mois | facture Scaleway du nœud Kapsule, même tarif |
+| Volume bloc 60 Go (5K) | ≈ 5,70 EUR/mois si conservé un mois complet | page tarifaire publique, 2026-09-15 |
+
+Pour une séance de tournage de 6 heures : de l'ordre de **0,35 EUR**. Une
+instance oubliée active pendant un mois entier coûterait de l'ordre de
+**40 EUR** pour rien : c'est exactement l'erreur d'exploitation que la règle
+de coût interdit, et `airflow_active = false` est le geste qui l'évite.
 
 ## Amorçage — à faire une seule fois, avant le premier `terraform init`
 
@@ -184,19 +183,30 @@ terraform fmt -recursive
 terraform validate
 ```
 
-## Coût — ordre de grandeur, à vérifier avant de laisser tourner
+## Coût — mesuré sur la facturation
 
-| Poste | Coût constaté sur la page tarifaire publique Scaleway (2026-09-15) |
-|---|---|
-| Plan de contrôle Kapsule mutualisé | Sans frais |
-| 1 nœud DEV1-M (3 vCPU, 4 Go) | ≈ 0,02 EUR/heure, ≈ 14,74 EUR/mois s'il tournait un mois complet |
-| Bucket Object Storage (quelques centaines de Mo) | Négligeable (tarif au Go stocké, très en dessous du seuil facturé en pratique) |
+Mesuré le 19 septembre 2026 par `scw billing consumption list`, relu après
+la destruction du cluster, qui a vécu 34,9 heures (du 18 septembre, 3 h 41
+UTC, au 19 septembre, 14 h 37 UTC). Projection en continu sur 730 heures.
 
-Avec un pool à 1 nœud pendant la préparation et 2 pendant la démonstration
-filmée, une séance de quelques heures coûte de l'ordre de quelques dizaines
-de centimes d'euro — mais seulement si le cluster est détruit ensuite. Un
-cluster oublié une semaine coûte de l'ordre de 15 à 30 EUR pour rien : c'est
-exactement l'erreur d'exploitation que la règle de coût interdit.
+| Poste | Prix horaire | Coût démo mesuré | Continu projeté / mois |
+|---|---|---|---|
+| Plan de contrôle Kapsule mutualisé | 0 EUR | 0,00 EUR | 0 EUR |
+| Nœud DEV1-M (3 vCPU, 4 Go) | 0,020196 EUR (API) | 0,73 EUR | 14,74 EUR par nœud |
+| IPv4 du nœud | 0,005 EUR | 0,18 EUR | 3,65 EUR par nœud |
+| SSD local 40 Go du nœud | 0,00216 EUR (tiré de la facture) | 0,08 EUR | 1,58 EUR par nœud |
+| Registre (vide) | 0 EUR | 0,00 EUR | ≈ 0 EUR |
+| Buckets (artefacts, état Terraform) | 0,000286 EUR (tiré de la facture) | 0,01 EUR | ≤ 0,21 EUR |
+| **Total** | **0,0277 EUR** | **1,00 EUR** | **20,18 EUR avec 1 nœud, 40,15 EUR avec 2** |
+
+Le SSD local du nœud est facturé à part : le catalogue le présentait comme
+inclus dans l'instance, la facture le montre en ligne distincte.
+
+Une séance de démonstration coûte donc de l'ordre de l'euro, à condition de
+détruire le cluster ensuite. Un cluster oublié coûte **environ 4,65 EUR par
+semaine**, **20 EUR par mois** avec un nœud : c'est exactement l'erreur
+d'exploitation que la règle de coût interdit. Le seul poste permanent est le
+bucket d'état, créé hors de ce Terraform et conservé entre les séances.
 
 ## Séquence de commandes — voir le README à la racine du dépôt
 

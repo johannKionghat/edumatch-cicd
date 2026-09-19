@@ -367,9 +367,10 @@ l'erreur d'exploitation que la règle de coût interdit.
 
 ### Coût de la séquence complète
 
-De l'ordre de quelques dizaines de centimes d'euro pour une séance de
-préparation et de démonstration de quelques heures (voir le détail par poste
-dans `terraform/README.md`) — à condition de détruire à l'étape 5. Un cluster
-laissé actif coûte de l'ordre de 15 à 30 EUR pour un mois oublié, pour un
+Mesuré sur la facturation Scaleway : 1,00 EUR pour les 34,9 heures de la
+démonstration du 18 au 19 septembre 2026 (détail par poste dans
+`terraform/README.md`) — à condition de détruire à l'étape 5. Un cluster
+laissé actif coûte environ 20 EUR pour un mois oublié avec un nœud, 40 EUR
+avec deux, pour un
 budget de projet qui est celui d'une startup en amorçage : c'est moi qui
 paie, pas un budget d'entreprise.
