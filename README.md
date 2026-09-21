@@ -65,6 +65,19 @@ de bord a donc une source, il reste à l'afficher sur un cluster.
 | `build-images.yml` | manuel, ou automatique sur poussée sur `main` d'edumatch-ia | Construit `edumatch-serve`, `edumatch-train` et `edumatch-airflow` depuis `edumatch-ia/docker/`, les tague par l'empreinte courte du commit, les publie sur le registre Scaleway |
 | `deploy.yml` | manuel, ou sur étiquette (tag) d'edumatch-ia | Applique les manifestes de `k8s/base/` sur le cluster de démonstration Kapsule, après vérification qu'ils existent |
 
+### État des exécutions sur la forge
+
+`ci.yml` a tourné six fois (onglet Actions du dépôt, déclenchement manuel) : trois
+exécutions rouges, trois vertes. La première a échoué au lint — huit erreurs `ruff` que la
+vérification locale ne voyait pas, puisqu'elle ne lançait que `pytest`. La deuxième a
+échoué aux tests, sur une erreur de configuration. Chaque échec a été corrigé en avant,
+sans contournement ni désactivation de contrôle ; les trois dernières exécutions sont
+vertes, lint et suite complète, la dernière sur 834 tests passés et 4 ignorés en Python
+3.11.
+
+`build-images.yml` et `deploy.yml` n'ont pas encore été exécutés : ils attendent la
+première publication d'image, à la séance de tournage.
+
 `edumatch-airflow` est construit depuis `edumatch-ia/docker/Dockerfile.airflow`.
 L'image n'embarque **ni machine virtuelle Java ni extra `[spark]`** : les
 ajouter cassait le cœur d'Airflow 2.9.3 (conflit de versions de SQLAlchemy et
