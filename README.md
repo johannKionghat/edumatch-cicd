@@ -51,13 +51,11 @@ edumatch-cicd/
 └── scaleway.env.example     gabarit des variables Scaleway, jamais de valeur réelle
 ```
 
-`terraform/`, `k8s/` et `monitoring/` sont désormais remplis — voir le
-`README.md` propre à chacun pour le détail de chaque fichier et ce qui n'a
-pas pu être vérifié faute de compte Scaleway. Les trois workflows sont
-complets et exécutables dès aujourd'hui — `ci.yml` fonctionne sans aucun
-secret Scaleway. `monitoring/README.md` prévient d'emblée : sans l'ajout
-d'une bibliothèque d'instrumentation côté `edumatch-ia` (code exact fourni
-dans ce fichier, pas encore collé), le tableau de bord reste vide.
+`terraform/`, `k8s/` et `monitoring/` sont remplis — voir le `README.md` propre à
+chacun pour le détail de chaque fichier et l'état de ce qui a été exécuté. Les trois
+workflows sont complets ; `ci.yml` fonctionne sans aucun secret Scaleway. L'API expose
+`/metrics` (`prometheus-fastapi-instrumentator>=8.0,<9.0` côté `edumatch-ia`) : le tableau
+de bord a donc une source, il reste à l'afficher sur un cluster.
 
 ## Les trois workflows
 
@@ -150,12 +148,14 @@ journaux).
 |---|---|---|
 | `SCW_REGISTRY_ENDPOINT` | `build-images.yml`, `deploy.yml` | `rg.fr-par.scw.cloud/edumatch` — obtenu après création d'un namespace dans Console Scaleway → Registre de conteneurs → Créer un namespace (région `fr-par`, nom `edumatch`) ; l'écran affiche l'URL du registre à utiliser. |
 
-## Ce qui n'a pas pu être vérifié ici
+## Ce qui reste à confirmer
 
-Je n'ai pas de compte Scaleway pour exécuter ces workflows de bout en bout.
-Deux points sont écrits d'après la documentation publique de Scaleway, pas
-vérifiés en conditions réelles, et à reconfirmer avant la démonstration
-filmée :
+La séquence d'infrastructure a été exécutée une première fois les 18 et 19 septembre 2026 :
+`terraform apply`, cluster Kapsule `Ready` en v1.36.4, secrets Kubernetes créés, puis
+destruction complète le 19 — coût mesuré sur la facturation, 1,00 €. Les deux workflows
+`build-images.yml` et `deploy.yml`, eux, n'ont pas encore été exécutés : ils attendent la
+première publication d'image. Les deux points suivants sont donc écrits d'après la
+documentation publique de Scaleway et de GitHub, et se confirmeront à cette occasion :
 
 - **La connexion au registre** (`docker/login-action` dans `build-images.yml`)
   utilise la convention `utilisateur = nologin`, `mot de passe = clé secrète`.
@@ -195,10 +195,10 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
    existe et que les secrets Kubernetes (`k8s/secret.example.yaml`) ont été
    créés à la main.
 3. ~~Monitoring (Prometheus, Alertmanager, Grafana, SLO p95 `/matching`
-   sous 300 ms, alertes actionnables)~~ — fait, voir `monitoring/`. Reste
-   bloquant côté `edumatch-ia` : l'instrumentation Prometheus de l'API n'est
-   pas encore ajoutée — code exact fourni dans `monitoring/README.md`, à
-   coller avant que les tableaux de bord n'affichent quoi que ce soit.
+   sous 300 ms, alertes actionnables)~~ — fait, voir `monitoring/`.
+   L'instrumentation de l'API est en place côté `edumatch-ia` (`/metrics`,
+   deux métriques métier). Reste à appliquer les manifestes de supervision
+   sur un cluster, à la première séance de tournage.
 4. ~~Instance dédiée à Airflow (ADR 0019) : `terraform/airflow.tf`,
    `terraform/cloud-init/airflow.yaml`, image `edumatch-airflow` dans
    `build-images.yml`~~ — fait, voir `terraform/README.md`, section
@@ -237,12 +237,13 @@ La séquence manuelle ci-dessous reste la référence détaillée — ce que le
 script exécute concrètement, commande par commande, utile pour comprendre
 ou dépanner une étape précise.
 
-### Rien de tout cela n'a été exécuté en conditions réelles
+### Ce que cette séquence a déjà produit
 
-Ni compte Scaleway ni binaire Terraform n'étaient disponibles au moment
-d'écrire ce document et le script. La séquence qui suit est la lecture
-manuelle, ligne par ligne, de ce que `terraform/` et `k8s/base/`
-demandent — à exécuter dans cet ordre exact, en lisant
+Exécutée une première fois les 18 et 19 septembre 2026, jusqu'à la création des secrets
+Kubernetes : cinq ressources créées, cluster Kapsule `Ready` en v1.36.4, puis destruction
+complète le 19 pour un coût mesuré de 1,00 €. Les étapes de déploiement des manifestes
+applicatifs et de la supervision n'ont pas encore été jouées : elles attendent la première
+image publiée au registre. La séquence est à exécuter dans cet ordre exact, en lisant
 chaque sortie avant de continuer (jamais un `plan`/`apply` enchaînés sans
 relecture).
 

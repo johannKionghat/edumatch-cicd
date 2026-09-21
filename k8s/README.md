@@ -112,10 +112,19 @@ de `deployment.yaml` atténue seulement quand deux nœuds sont disponibles —
 elle ne bloque jamais un déploiement si le pool est réduit à un seul nœud
 (`terraform/variables.tf`, `pool_taille_min: 1`).
 
-## Ce qui n'a pas pu être vérifié ici
+## Ce qui a été observé, et ce qui reste à observer
 
-Ni `terraform apply` ni `kubectl apply` n'ont été exécutés : aucun cluster
-n'existe. La validation faite à ce jour :
+Le cluster a existé les 18 et 19 septembre 2026, et `kubectl` y a été exécuté. Observé à
+cette occasion : le nœud unique est passé `Ready` en v1.36.4 environ deux minutes après
+l'`apply` Terraform, le namespace `edumatch` et ses deux secrets (accès au stockage objet,
+accès au registre) ont été créés, et `kubectl get nodes` répond avec le kubeconfig installé
+par `scw k8s kubeconfig install`.
+
+Les manifestes de `base/` n'ont pas encore été appliqués : ils référencent une image que le
+workflow de construction n'a pas encore publiée au registre. Ce sera le premier geste de la
+séance de tournage.
+
+La validation faite sur les fichiers eux-mêmes :
 
 - Syntaxe YAML de chaque fichier, vérifiée par un chargeur YAML standard —
   tous valides.
@@ -125,7 +134,7 @@ n'existe. La validation faite à ce jour :
   dans les manifestes.
 - Relecture manuelle ligne par ligne contre la documentation Kubernetes.
 
-Points précis à reconfirmer avant le premier déploiement réel, chacun isolé
+Points précis à confirmer au premier déploiement des manifestes, chacun isolé
 pour une correction rapide :
 
 - **Le tag de l'image `amazon/aws-cli`** utilisée par le conteneur

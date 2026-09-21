@@ -114,7 +114,7 @@ terraform apply destroy-airflow.tfout
 
 ### Coût de l'instance Airflow, ordre de grandeur
 
-L'instance n'a jamais été créée : aucun de ces chiffres n'est une mesure.
+L'instance est éphémère par conception (`airflow_active`) : créée pour chaque séance de démonstration, détruite après. Chiffres ci-dessous d'après l'API Scaleway ; le coût mesuré d'une séance réelle sera relevé sur la facturation à la première séance de tournage.
 
 | Poste | Prix | Source |
 |---|---|---|
@@ -138,32 +138,36 @@ Deux façons de le créer, une seule à faire :
 - **Ligne de commande**, si le CLI `scw` est installé et configuré :
   `scw object bucket create name=edumatch-tfstate region=fr-par`
 
-## Ce qui n'a pas pu être vérifié ici
+## Ce que le premier `apply` a confirmé, et ce qui reste ouvert
 
-Je n'ai ni compte Scaleway ni binaire Terraform dans cet environnement. Rien
-n'a été exécuté au-delà d'une relecture manuelle ligne par ligne. Points
-précis à reconfirmer avant le premier `apply`, chacun isolé dans un seul
-fichier pour que la correction reste rapide :
+La séquence a été exécutée une première fois les 18 et 19 septembre 2026 : `terraform
+apply`, cinq ressources créées, cluster Kapsule `Ready` en v1.36.4, secrets Kubernetes
+créés, puis destruction complète le 19 — coût mesuré sur la facturation, 1,00 €.
 
-- **Le comportement du backend `s3` contre le point de terminaison Object
-  Storage de Scaleway** (`use_lockfile`, `use_path_style`) — voir la note en
-  tête de `versions.tf`.
-- **L'argument `acl` porté directement par `scaleway_object_bucket`** plutôt
-  que par une ressource séparée dans la version 2.83.0 du provider — voir la
-  note dans `main.tf`, à côté de la ressource `artefacts`.
-- **Les versions de Kubernetes réellement proposées par Kapsule au moment de
-  la démonstration** (`version_kubernetes` dans `variables.tf`, valeur
-  `1.30` non confirmée contre `scw k8s version list`).
-- **Un conflit possible avec le namespace de registre `edumatch`** créé à la
-  main pendant l'étape CI/CD précédente (voir la note dans `main.tf`, section
-  "Registre de conteneurs") — à trancher (import ou recréation) avant le
-  premier `apply`.
-- **Le libellé exact de l'image Ubuntu LTS** utilisée par
-  `scaleway_instance_server.airflow` (`airflow.tf`) : `ubuntu_jammy` suit la
-  convention observée dans la documentation publique Scaleway au
-  2026-09-15, mais elle évolue avec les images retirées ou ajoutées au
-  catalogue — à confirmer par `scw instance image list zone=fr-par-1` avant
-  le premier `apply`.
+**Confirmés le 18 septembre** (corrections dans le commit `f65f3b7`) :
+
+- **Le backend `s3` contre le point de terminaison Object Storage de Scaleway**
+  (`use_lockfile`, `use_path_style`) : l'état distant s'initialise et se verrouille. Les
+  variables `AWS_ACCESS_KEY_ID` et `AWS_SECRET_ACCESS_KEY` doivent être présentes en plus
+  des variables `SCW_` — sans elles, l'accès au bucket d'état échoue en 403.
+- **L'argument `acl` porté directement par `scaleway_object_bucket`** : il fonctionne en
+  2.83.0, mais le provider le signale comme déprécié au profit d'une ressource séparée.
+- **Les versions de Kubernetes proposées par Kapsule** : `1.30` n'existait plus au
+  catalogue. La valeur est épinglée à `1.36.4`, correctif compris — l'API refuse une
+  version mineure seule sans mise à jour automatique.
+- **Les volumes** : `b_ssd` n'est plus accepté ; le volume de données passe en Block
+  Storage (`scaleway_block_volume`) et le volume racine en `sbs_volume`.
+- **Le libellé de l'image Ubuntu** de `scaleway_instance_server.airflow` : `ubuntu_jammy`
+  existe bien au catalogue (Ubuntu 22.04 LTS), vérifié par `scw marketplace image list`.
+- **Le conflit possible avec le namespace de registre `edumatch`** : aucun namespace
+  préexistant, Terraform l'a créé.
+
+**Ouverts, à confirmer à la première séance de tournage** :
+
+- Les workflows `build-images.yml` et `deploy.yml`, pas encore exécutés : ils attendent la
+  première publication d'image au registre.
+- Le déclenchement automatique de bout en bout entre les deux dépôts.
+- L'instance Airflow, créée à la demande (voir `airflow_active` ci-dessus).
 - **Les noms d'attributs `ip_id` et le bloc `private_network` sur
   `scaleway_instance_server`**, ainsi que `stateful` sur
   `scaleway_instance_security_group`, dans la version 2.83.0 du provider —
