@@ -6,28 +6,34 @@ Sert les critères 2.8 (surveillance : métriques, alertes, incidents) et 4.13
 sur le cluster de démonstration Scaleway Kapsule (`terraform/`) — ni l'un ni
 l'autre n'est modifié depuis ce dossier.
 
-## ⚠️ Sans l'étape 1 ci-dessous, tout le reste de ce dossier reste vide
+## L'instrumentation de l'API : en place
 
-Prometheus, Grafana et les alertes de ce dossier supposent que l'API expose
-une route `/metrics`. **Ce n'est pas le cas aujourd'hui** : `edumatch-ia`
-n'embarque aucune bibliothèque d'instrumentation Prometheus (vérifié dans
-`pyproject.toml` et `src/edumatch/api/` au moment d'écrire ce dossier). Tant
-que le code ci-dessous n'a pas été ajouté côté `edumatch-ia`, reconstruit et
-redéployé : le job `edumatch-serve` n'aura aucune cible, le tableau de bord
-Grafana affichera des panneaux vides, et l'alerte `EdumatchInstrumentationAbsente`
-(voir plus bas) sera la seule à se déclencher — c'est exactement son rôle.
+Prometheus, Grafana et les alertes de ce dossier supposent que l'API expose une route
+`/metrics`. **C'est le cas** : `edumatch-ia` embarque
+`prometheus-fastapi-instrumentator>=8.0,<9.0` (`pyproject.toml`) et appelle
+`Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)`
+dans `src/edumatch/api/main.py`. Les deux métriques métier décrites plus bas existent
+également : `edumatch_feedback_decisions_total` et `edumatch_matching_sans_resultat_total`.
 
-Cette section est délibérément la seule de tout ce dépôt CI/CD à décrire du
-code destiné à un autre dépôt : `edumatch-cicd` ne modifie jamais
-`edumatch-ia`, mais le monitoring de l'un ne peut pas exister sans un geste
-minimal dans l'autre. Le geste est décrit ici, textuellement, prêt à être
-collé.
+L'alerte `EdumatchInstrumentationAbsente` (voir plus bas) garde tout son sens : elle ne
+signale plus une instrumentation à écrire, mais une instrumentation qui aurait disparu —
+image reconstruite sans la dépendance, route déplacée, collecteur mal configuré.
+
+Les sections qui suivent décrivent ce code parce que le monitoring de ce dépôt ne peut pas
+s'expliquer sans lui : `edumatch-cicd` ne modifie jamais `edumatch-ia`. Elles décrivent
+l'état en place, pas un geste à faire.
 
 ### 1. Dépendance — `edumatch-ia/pyproject.toml`
 
 ```toml
-"prometheus-fastapi-instrumentator>=7.0,<8.0",
+"prometheus-fastapi-instrumentator>=8.0,<9.0",
 ```
+
+La borne haute n'est pas une précaution de principe : elle vient d'une panne réelle. La
+série 7.x s'appuie sur une structure interne de FastAPI qui a changé en 0.141 — dans cette
+version, `app.routes` expose un routeur inclus par `include_router()` là où 7.x attend une
+route, et l'instrumentation échoue au démarrage. La borne basse écarte donc la série
+cassée, et la borne haute interdit qu'une 9.x inconnue entre sans être testée.
 
 Alternative écartée : instrumenter à la main avec `prometheus_client` seul
 (créer soi-même les histogrammes de latence, les compteurs par route et par
@@ -44,6 +50,8 @@ qui ne rentrent pas dans le modèle « une requête HTTP, une route, un code »
 — pas le cas de `/matching`, `/explain`, `/feedback`, `/health`.
 
 ### 2. Exposition — `edumatch-ia/src/edumatch/api/main.py`
+
+Le code ci-dessous est celui en place dans `create_app()`.
 
 ```python
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -80,12 +88,13 @@ aujourd'hui, donc pas de risque de cardinalité incontrôlée sur le label
 jour, vérifier que le regroupement par gabarit reste actif avant de
 déployer — sinon chaque identifiant produirait sa propre série temporelle.
 
-### 3. Deux métriques métier, optionnelles mais recommandées
+### 3. Deux métriques métier, en place
 
-Ni obligatoires pour que les alertes et le tableau de bord de base
-fonctionnent (ils ne dépendent que de l'étape 2), ni couvertes par
-l'instrumentation HTTP générique — elles portent une information que seul le
-code métier connaît.
+Ni obligatoires pour que les alertes et le tableau de bord de base fonctionnent (ils ne
+dépendent que de l'étape 2), ni couvertes par l'instrumentation HTTP générique — elles
+portent une information que seul le code métier connaît. Les deux existent dans
+`edumatch-ia` : `edumatch_feedback_decisions_total` et
+`edumatch_matching_sans_resultat_total`.
 
 **`edumatch-ia/src/edumatch/api/routes/feedback.py`** — compte les décisions
 d'un conseiller par type (retenu / écarté), le signal le plus direct du
@@ -239,7 +248,7 @@ symptômes réels ; leurs `action` renvoient vers les causes usuelles (CPU,
 mémoire, capacité) sans en faire des alertes séparées qui doubleraient le
 signal.
 
-## Déployer (une fois le cluster provisionné et l'instrumentation ajoutée)
+## Déployer (une fois le cluster provisionné et l'API déployée)
 
 ```bash
 # 0. Le namespace applicatif "edumatch" doit déjà exister et l'API déjà
@@ -284,8 +293,10 @@ Détruire en même temps que le reste (voir README racine, section
 
 ## Ce qui n'a pas pu être vérifié ici
 
-Aucun cluster, aucun compte Scaleway disponibles à ce jour — rien
-de ce qui suit n'a été appliqué réellement.
+Le cluster a été provisionné et détruit les 18 et 19 septembre 2026, mais les manifestes
+de ce dossier n'y ont pas été appliqués : la supervision se déploie après les images
+applicatives, qui n'étaient pas encore publiées au registre. Elle le sera à la première
+séance de tournage.
 
 - **Validation faite** : chaque fichier YAML de ce dossier (y compris le
   contenu imbriqué des `ConfigMap` — `prometheus.yml`, les règles d'alerte,
