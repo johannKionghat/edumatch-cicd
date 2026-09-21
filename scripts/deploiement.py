@@ -284,6 +284,18 @@ def cmd_verifier(_: argparse.Namespace) -> int:
 # ─── amorcer ────────────────────────────────────────────────────────────
 
 
+def noms_des_buckets(buckets: object) -> set[str]:
+    """Noms lus dans la sortie JSON de `scw object bucket list`.
+
+    Le CLI renvoie le champ `Name`, avec une majuscule (sortie S3 brute) : lire seulement
+    `name` faisait passer un bucket existant pour absent, et la création échouait en 409
+    « BucketAlreadyOwnedByYou ». Les deux graphies sont acceptées.
+    """
+    if not isinstance(buckets, list):
+        return set()
+    return {b.get("Name") or b.get("name") for b in buckets if isinstance(b, dict)} - {None}
+
+
 def cmd_amorcer(_: argparse.Namespace) -> int:
     afficher_titre(f"Amorçage du bucket d'état Terraform « {NOM_BUCKET_ETAT} »")
     if not shutil.which("scw"):
@@ -301,8 +313,7 @@ def cmd_amorcer(_: argparse.Namespace) -> int:
             "Réponse inattendue de `scw object bucket list` — vérifier la "
             "configuration du CLI (`scw init`)."
         ) from exc
-    noms = {b.get("name") for b in buckets} if isinstance(buckets, list) else set()
-    if NOM_BUCKET_ETAT in noms:
+    if NOM_BUCKET_ETAT in noms_des_buckets(buckets):
         afficher(f"Le bucket « {NOM_BUCKET_ETAT} » existe déjà — rien à faire (idempotent).")
         return 0
     executer(
