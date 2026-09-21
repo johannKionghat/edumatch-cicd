@@ -161,6 +161,12 @@ créés, puis destruction complète le 19 — coût mesuré sur la facturation, 
   existe bien au catalogue (Ubuntu 22.04 LTS), vérifié par `scw marketplace image list`.
 - **Le conflit possible avec le namespace de registre `edumatch`** : aucun namespace
   préexistant, Terraform l'a créé.
+- **Les noms d'attributs `ip_id` et le bloc `private_network` sur
+  `scaleway_instance_server`**, ainsi que `stateful` sur
+  `scaleway_instance_security_group` : acceptés par `terraform validate` en 2.83.0. Ces
+  ressources portent `count = var.airflow_active ? 1 : 0` et n'ont donc pas encore été
+  créées : leur comportement à l'`apply` se vérifiera à la première séance qui lève
+  l'instance.
 
 **Ouverts, à confirmer à la première séance de tournage** :
 
@@ -168,18 +174,11 @@ créés, puis destruction complète le 19 — coût mesuré sur la facturation, 
   première publication d'image au registre.
 - Le déclenchement automatique de bout en bout entre les deux dépôts.
 - L'instance Airflow, créée à la demande (voir `airflow_active` ci-dessus).
-- **Les noms d'attributs `ip_id` et le bloc `private_network` sur
-  `scaleway_instance_server`**, ainsi que `stateful` sur
-  `scaleway_instance_security_group`, dans la version 2.83.0 du provider —
-  non exécutés faute de binaire Terraform à ce jour, à confirmer
-  par `terraform validate`.
 
-`terraform fmt` a été appliqué manuellement (indentation à deux espaces,
-alignement des `=`) aux fichiers existant avant l'ajout d'`airflow.tf` ;
-faute de binaire Terraform à ce jour, ni `terraform fmt` ni
-`terraform validate` n'ont pu être exécutés sur `airflow.tf` et
-`cloud-init/airflow.yaml`. Les deux commandes sont à lancer avant `plan`, dès
-que Terraform est disponible sur le poste qui exécutera réellement le
+`terraform fmt -recursive` et `terraform validate` ont été exécutés le 18 septembre 2026
+sur l'ensemble des fichiers, `airflow.tf` et `cloud-init/airflow.yaml` compris : le
+formatage a été corrigé et la configuration est valide. Les deux commandes restent à
+relancer avant chaque `plan`, sur le poste qui exécutera réellement le
 provisionnement :
 
 ```bash
