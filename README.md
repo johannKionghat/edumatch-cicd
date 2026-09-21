@@ -308,7 +308,7 @@ aws --endpoint-url https://s3.fr-par.scw.cloud s3 cp \
     s3://edumatch-artefacts/explicabilite/explications_locales.parquet
 
 # Créer les secrets Kubernetes (jamais commités) — voir le gabarit exact
-# et les trois commandes dans k8s/secret.example.yaml
+# et les commandes dans k8s/secret.example.yaml
 kubectl create namespace edumatch
 kubectl create secret generic edumatch-object-storage --namespace edumatch \
     --from-literal=access-key-id=$SCW_ACCESS_KEY \
@@ -317,6 +317,10 @@ kubectl create secret docker-registry edumatch-registry-pull --namespace edumatc
     --docker-server=$(cd ../terraform && terraform output -raw registre_endpoint) \
     --docker-username=nologin \
     --docker-password=$SCW_SECRET_KEY
+# Comptes nominatifs de l'écran conseiller : sans eux, /matching refuse
+# tout. Empreinte calculée hors ligne depuis edumatch-ia avec
+# `python -m edumatch.api.auth "<mot de passe>"` (voir k8s/README.md)
+kubectl create secret generic edumatch-conseillers --namespace edumatch     --from-literal=comptes='<identifiant>:<empreinte>'
 ```
 
 ### 3. Publier une image et déployer

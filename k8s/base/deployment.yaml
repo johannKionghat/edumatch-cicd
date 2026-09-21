@@ -178,6 +178,22 @@ spec:
                   name: edumatch-mistral
                   key: api-key
                   optional: true
+            # Comptes nominatifs de l'écran conseiller, au format
+            # `identifiant:empreinte-scrypt` décrit dans .env.example côté
+            # edumatch-ia (section « Ecran conseiller »). Pourquoi : chaque
+            # inférence et chaque écartement doivent être imputables à une
+            # personne identifiée (contrôle humain, article 14 du règlement
+            # sur l'IA) — un compte partagé ne prouverait rien. Sans cette
+            # variable, l'API refuse l'écran, /matching et /feedback (503).
+            # Volontairement NON `optional` : un secret absent bloque le pod
+            # en `CreateContainerConfigError`, visible dans
+            # `kubectl get pods`, plutôt qu'une API qui démarre et refuse
+            # ensuite chaque requête. Création : k8s/secret.example.yaml.
+            - name: CONSEILLER_COMPTES
+              valueFrom:
+                secretKeyRef:
+                  name: edumatch-conseillers
+                  key: comptes
 
           # ─── requests / limits — le critère de cette étape ──────────────
           # Sans `requests`, l'ordonnanceur Kubernetes place le pod à

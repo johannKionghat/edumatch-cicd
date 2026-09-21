@@ -112,6 +112,33 @@ de `deployment.yaml` atténue seulement quand deux nœuds sont disponibles —
 elle ne bloque jamais un déploiement si le pool est réduit à un seul nœud
 (`terraform/variables.tf`, `pool_taille_min: 1`).
 
+## Les comptes conseillers : le secret `edumatch-conseillers`
+
+Le conteneur `edumatch-serve` lit `CONSEILLER_COMPTES` dans le secret
+`edumatch-conseillers`, clé `comptes`. Sans lui, l'API refuse l'écran conseiller,
+`/matching` et `/feedback` : aucune décision ne peut être prise sans être imputable à une
+personne identifiée (contrôle humain, article 14 du règlement sur l'IA). Le format est celui
+que documente `.env.example` côté edumatch-ia : `identifiant:empreinte`, plusieurs comptes
+séparés par `;`.
+
+L'empreinte scrypt se calcule hors ligne, depuis edumatch-ia :
+
+```
+python -m edumatch.api.auth "<mot de passe>"
+```
+
+puis le secret se crée ainsi :
+
+```
+kubectl create secret generic edumatch-conseillers --namespace edumatch   --from-literal=comptes="<identifiant>:<empreinte>"
+```
+
+`python scripts/deploiement.py secrets-k8s` le crée aussi, depuis la variable
+`CONSEILLER_COMPTES` de `scaleway.env`. Le script refuse une entrée qui n'a pas la forme
+d'une empreinte scrypt : un mot de passe recopié en clair par erreur n'atteint jamais le
+cluster. Le secret n'est pas `optional` dans le Deployment : s'il manque, le pod reste en
+`CreateContainerConfigError`, ce qui se voit immédiatement dans `kubectl get pods`.
+
 ## Ce qui a été observé, et ce qui reste à observer
 
 Le cluster a existé les 18 et 19 septembre 2026, et `kubectl` y a été exécuté. Observé à

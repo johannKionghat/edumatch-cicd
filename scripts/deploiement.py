@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import secrets as secrets_module
 import shutil
 import subprocess
@@ -464,6 +465,44 @@ def _appliquer_secret_genere(commande_creation: Sequence[str], secrets_a_masquer
     executer(["kubectl", "apply", "-f", "-"], entree=manifeste)
 
 
+# Empreinte produite par `python -m edumatch.api.auth` (edumatch-ia) : `scrypt$<sel>$<hachage>`,
+# sel de 16 octets et hachage de 32 octets, en hexadécimal.
+MOTIF_COMPTE_CONSEILLER = re.compile(r"^[^:;\s]+:scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}$")
+
+
+def valider_comptes_conseillers(brut: str) -> list[str]:
+    """Identifiants des comptes de `CONSEILLER_COMPTES`, après contrôle du format.
+
+    Chaque entrée doit être `identifiant:empreinte-scrypt`. Deux fautes sont ainsi arrêtées
+    avant d'atteindre le cluster : un mot de passe recopié en clair à la place de son empreinte
+    (il finirait dans un Secret Kubernetes, simplement encodé en base64), et une entrée mal
+    formée, que l'API refuserait au démarrage — les pods redémarreraient en boucle. Le message
+    d'erreur ne cite jamais la valeur fautive, seulement sa position.
+    """
+    entrees = [e.strip() for e in brut.split(";") if e.strip()]
+    if not entrees:
+        raise ErreurDeploiement("CONSEILLER_COMPTES est vide : au moins un compte nominatif est requis.")
+    identifiants: list[str] = []
+    for rang, entree in enumerate(entrees, start=1):
+        if not MOTIF_COMPTE_CONSEILLER.match(entree):
+            raise ErreurDeploiement(
+                f"CONSEILLER_COMPTES : l'entrée n°{rang} n'a pas la forme "
+                "`identifiant:scrypt$<sel>$<hachage>`. L'empreinte se calcule hors ligne avec "
+                '`python -m edumatch.api.auth "<mot de passe>"` (depuis edumatch-ia) ; '
+                "le mot de passe lui-même n'est jamais écrit dans scaleway.env."
+            )
+        if "$" + "0" * 32 + "$" in entree:
+            raise ErreurDeploiement(
+                f"CONSEILLER_COMPTES : l'entrée n°{rang} porte encore l'empreinte factice de "
+                "scaleway.env.example — la remplacer par une empreinte réelle."
+            )
+        identifiant = entree.split(":", 1)[0]
+        if identifiant in identifiants:
+            raise ErreurDeploiement(f"CONSEILLER_COMPTES : l'identifiant de l'entrée n°{rang} est déjà déclaré.")
+        identifiants.append(identifiant)
+    return identifiants
+
+
 def cmd_secrets_k8s(_: argparse.Namespace) -> int:
     afficher_titre("Création des secrets Kubernetes (namespace applicatif)")
     for nom in ("SCW_ACCESS_KEY", "SCW_SECRET_KEY"):
@@ -513,6 +552,27 @@ def cmd_secrets_k8s(_: argparse.Namespace) -> int:
         ],
         secrets_a_masquer=[secret_],
     )
+
+    # Comptes nominatifs de l'écran conseiller (motif A, imputabilité — article 14 du règlement
+    # sur l'IA) : sans eux, l'API refuse /matching, /feedback et l'écran. Seules les empreintes
+    # transitent, jamais un mot de passe ; elles sont masquées dans la commande affichée.
+    comptes = os.environ.get("CONSEILLER_COMPTES", "")
+    if not comptes:
+        raise ErreurDeploiement(
+            "CONSEILLER_COMPTES n'est pas définie dans scaleway.env : l'API refuserait toute "
+            "requête de matching. Voir scaleway.env.example pour la générer."
+        )
+    identifiants = valider_comptes_conseillers(comptes)
+    _appliquer_secret_genere(
+        [
+            "kubectl", "create", "secret", "generic", "edumatch-conseillers",
+            "--namespace", NAMESPACE_APPLICATIF,
+            f"--from-literal=comptes={comptes}",
+            "--dry-run=client", "-o", "yaml",
+        ],
+        secrets_a_masquer=[comptes],
+    )
+    afficher(f"Comptes conseillers : {len(identifiants)} ({', '.join(identifiants)}).")
 
     afficher("Secrets créés ou mis à jour (idempotent).")
     return 0
