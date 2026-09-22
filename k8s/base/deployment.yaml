@@ -113,6 +113,11 @@ spec:
                 "s3://$SCW_ARTEFACTS_BUCKET/matching" /app/data/processed/matching
               aws --endpoint-url "$SCW_S3_ENDPOINT" s3 sync \
                 "s3://$SCW_ARTEFACTS_BUCKET/explicabilite" /app/data/processed/explicabilite
+              # Référentiels IDÉO (3,0 Mio : formations.csv, metiers.csv, manifeste.json) :
+              # corpus documentaire de l'assistant, construit au premier appel de /assistant.
+              # Sans eux, cette route seule répond 503 ; le reste du service n'est pas concerné.
+              aws --endpoint-url "$SCW_S3_ENDPOINT" s3 sync \
+                "s3://$SCW_ARTEFACTS_BUCKET/referentiels" /app/data/external/referentiels
           envFrom:
             - configMapRef:
                 name: edumatch-serve-config
