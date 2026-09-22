@@ -298,11 +298,15 @@ scw k8s kubeconfig install $(terraform output -raw cluster_id) region=fr-par
 kubectl get nodes                     # doit lister 1 nœud DEV1-M
 
 # Déposer les artefacts précalculés (produits par `make train` puis
-# `make explain` côté edumatch-ia) dans le bucket — remplace le volume
+# `make explain`, `make departements` côté edumatch-ia) dans le bucket — remplace le volume
 # partagé que l'API n'a pas en démonstration (voir terraform/main.tf)
 aws --endpoint-url https://s3.fr-par.scw.cloud s3 cp \
     edumatch-ia/data/processed/matching/catalogue_predictions.parquet \
     s3://edumatch-artefacts/matching/catalogue_predictions.parquet
+# Libellés des départements de la liste déroulante de l'écran (`make
+# departements` côté edumatch-ia) : sans ce fichier, la liste affiche les
+# codes seuls.
+aws --endpoint-url https://s3.fr-par.scw.cloud s3 cp     edumatch-ia/data/processed/matching/departements_libelles.parquet     s3://edumatch-artefacts/matching/departements_libelles.parquet
 aws --endpoint-url https://s3.fr-par.scw.cloud s3 cp \
     edumatch-ia/data/processed/explicabilite/explications_locales.parquet \
     s3://edumatch-artefacts/explicabilite/explications_locales.parquet
