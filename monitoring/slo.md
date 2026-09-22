@@ -39,10 +39,19 @@ catalogue à chaque appel.
 
 Déjà arrêté dans `configs/base.yaml` (`slo_latence_p95_ms: 300`), côté
 edumatch-ia — repris ici tel quel, pas redéfini séparément, pour que le seuil
-d'alerte Prometheus et le seuil qui borne `max_formations_evaluees`
-(le plafond qui empêche une requête à catalogue trop large de dégrader tout
-le monde, voir `api/routes/matching.py`) restent la même valeur, à un seul
-endroit d'origine.
+d'alerte Prometheus reste la même valeur, à un seul endroit d'origine.
+
+**Ce SLO n'est pas tenu à ce jour, et le plafond `max_formations_evaluees` ne
+le garantit pas.** Le plafond (1 100 formations) couvre le plus gros
+département réel du catalogue ; il borne le coût d'une requête, il ne le fait
+pas tenir sous 300 ms. Mesure de bout en bout côté edumatch-ia
+(`scripts/bench_matching.py`, `reports/bench-matching.json`) : p95 de 844 ms
+sur Paris (1 010 formations), dont 125 ms fixes de vérification scrypt et
+0,47 ms par formation pour le calcul du score, non vectorisé. L'alerte
+`EdumatchLatenceP95Elevee` peut donc se déclencher sur des recherches réelles
+de grands départements : c'est l'état mesuré, pas un faux positif. La
+correction suivante — vectoriser le calcul du score, sous test d'équivalence
+stricte des scores — est décrite dans `docs/service.html` côté edumatch-ia.
 
 **Par définition, un p95 sous 300 ms équivaut exactement à : au moins 95 %
 des requêtes sont servies en moins de 300 ms.** Le budget d'erreur de latence
