@@ -3,13 +3,13 @@
 [extend]
 useDefault = true
 
-# `ci.yml` récupère edumatch-ia dans le sous-dossier `edumatch-ia/` avant de lancer les tests.
-# Ce dépôt-là est analysé par une commande distincte, avec SA propre configuration et SES
-# faux positifs déclarés : l'analyser une deuxième fois ici, avec cette configuration,
-# remonterait le faux positif daté de son historique comme une anomalie de ce dépôt.
+# `ci.yml` récupère les deux dépôts dans des sous-dossiers voisins et analyse chacun avec sa
+# propre configuration. Cette exclusion est un filet : si l'analyse était un jour lancée depuis
+# la racine de l'espace de travail, edumatch-ia serait parcouru avec CETTE configuration, et le
+# faux positif daté de son historique remonterait comme une anomalie de ce dépôt-ci.
 [[allowlists]]
 description = "edumatch-ia, analysé séparément avec sa propre configuration"
-paths = ['''^edumatch-ia/''']
+paths = ['''(^|/)edumatch-ia/''']
 
 # Note pour une analyse lancée à la main sur un poste : `gitleaks dir` parcourt aussi les
 # fichiers exclus par `.gitignore`, donc `scaleway.env` (clés Scaleway réelles, jamais

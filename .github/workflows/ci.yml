@@ -48,6 +48,14 @@ jobs:
           REF="${{ github.event.client_payload.ref || inputs.ref || 'main' }}"
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
+      # Ce dépôt-ci n'était pas récupéré : ce workflow ne lisait que le code d'edumatch-ia.
+      # L'analyse de secrets a besoin des fichiers de CE dépôt et de sa configuration.
+      - name: Récupérer edumatch-cicd
+        uses: actions/checkout@v4
+        with:
+          path: edumatch-cicd
+          persist-credentials: false
+
       # Le code réel est dans l'autre dépôt. `token` n'est requis que si
       # edumatch-ia est privé — voir README, secret EDUMATCH_IA_PAT.
       - name: Récupérer edumatch-ia @ ${{ steps.ref.outputs.ref }}
@@ -90,7 +98,7 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks version
           echo "::group::edumatch-cicd"
-          ./gitleaks dir . --config .gitleaks.toml --redact --no-banner
+          ./gitleaks dir edumatch-cicd --config edumatch-cicd/.gitleaks.toml --redact --no-banner
           echo "::endgroup::"
           echo "::group::edumatch-ia"
           ./gitleaks dir edumatch-ia --config edumatch-ia/.gitleaks.toml --redact --no-banner
