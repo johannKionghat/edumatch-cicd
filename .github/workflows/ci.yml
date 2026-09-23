@@ -76,6 +76,26 @@ jobs:
         working-directory: edumatch-ia
         run: pip install -e ".[dev]"
 
+      # Analyse de secrets, BLOQUANTE (action AI-4 du plan de gouvernance d'edumatch-ia) :
+      # un secret introduit par mégarde ne doit jamais atteindre `main`. Version épinglée,
+      # binaire officiel : pas d'action tierce à qui confier le contenu des deux dépôts.
+      # Les deux dépôts sont analysés, chacun avec sa configuration et ses faux positifs
+      # déclarés par empreinte exacte (`.gitleaks.toml`, `.gitleaksignore`).
+      - name: Analyse de secrets — gitleaks (bloquante)
+        env:
+          VERSION_GITLEAKS: "8.30.1"
+        run: |
+          set -euo pipefail
+          curl -sSfL -o gitleaks.tar.gz             "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION_GITLEAKS}/gitleaks_${VERSION_GITLEAKS}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version
+          echo "::group::edumatch-cicd"
+          ./gitleaks dir . --config .gitleaks.toml --redact --no-banner
+          echo "::endgroup::"
+          echo "::group::edumatch-ia"
+          ./gitleaks dir edumatch-ia --config edumatch-ia/.gitleaks.toml --redact --no-banner
+          echo "::endgroup::"
+
       - name: Lint — ruff
         working-directory: edumatch-ia
         run: ruff check src tests
