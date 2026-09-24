@@ -211,8 +211,10 @@ coût.
 chacun, jusqu'à 6 au pic (`hpa.yaml`) — soit 1200m CPU / 1920Mi au maximum,
 répartis sur 2 nœuds `DEV1-M` (3 vCPU / 4 Go chacun, `terraform/variables.tf`).
 Le monitoring (175m/448Mi de requêtes) reste une fraction raisonnable d'un
-seul nœud et ne devrait pas empêcher le HPA d'atteindre 6 réplicas — non
-vérifié sous charge réelle faute de cluster disponible ici. Si le pic
+seul nœud et ne devrait pas empêcher le HPA d'atteindre 6 réplicas. Le cluster
+existe depuis le 22 septembre 2026 et les réplicas y consomment 487 et 510 Mio
+hors charge (`kubectl top pod`) ; ce qui reste à vérifier est le comportement
+sous charge réelle, avec la supervision déployée. Si le pic
 saisonnier réel montre une contention, la première option est un
 `nodeSelector`/anti-affinité qui isole le monitoring sur un nœud dédié,
 pas ajoutée par défaut ici pour ne pas complexifier une démonstration qui n'a
@@ -293,10 +295,11 @@ Détruire en même temps que le reste (voir README racine, section
 
 ## Ce qui n'a pas pu être vérifié ici
 
-Le cluster a été provisionné et détruit les 18 et 19 septembre 2026, mais les manifestes
-de ce dossier n'y ont pas été appliqués : la supervision se déploie après les images
-applicatives, qui n'étaient pas encore publiées au registre. Elle le sera à la première
-séance de tournage.
+Le cluster existe et porte l'application depuis le 22 septembre 2026, mais les manifestes de
+ce dossier n'y ont pas encore été appliqués : leur déploiement est planifié avant mise en
+service, sous la responsabilité du responsable sécurité technique. La collecte réelle des
+métriques par un Prometheus déployé, et donc la vérification des alertes de bout en bout,
+en dépendent.
 
 - **Validation faite** : chaque fichier YAML de ce dossier (y compris le
   contenu imbriqué des `ConfigMap` — `prometheus.yml`, les règles d'alerte,

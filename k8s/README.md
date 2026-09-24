@@ -147,9 +147,13 @@ l'`apply` Terraform, le namespace `edumatch` et ses deux secrets (accès au stoc
 accès au registre) ont été créés, et `kubectl get nodes` répond avec le kubeconfig installé
 par `scw k8s kubeconfig install`.
 
-Les manifestes de `base/` n'ont pas encore été appliqués : ils référencent une image que le
-workflow de construction n'a pas encore publiée au registre. Ce sera le premier geste de la
-séance de tournage.
+Les manifestes de `base/` ont été appliqués le 22 septembre 2026, avec l'image étiquetée
+`1acab97` publiée au registre par `build-images.yml`. Observé depuis : deux pods `Running`,
+le conteneur d'initialisation a bien récupéré les artefacts depuis le stockage objet, et
+`NetworkPolicy`, `PodDisruptionBudget` et `HorizontalPodAutoscaler` sont en place, ce dernier
+à deux réplicas pour un plancher de deux et un plafond de six. Le déploiement a été fait par
+`scripts/deploiement.py` ; l'exécution de `deploy.yml`, qui applique les mêmes manifestes,
+reste à faire.
 
 La validation faite sur les fichiers eux-mêmes :
 
@@ -165,14 +169,19 @@ Points précis à confirmer au premier déploiement des manifestes, chacun isol�
 pour une correction rapide :
 
 - **Le tag de l'image `amazon/aws-cli`** utilisée par le conteneur
-  d'initialisation (`base/deployment.yaml`) — non vérifié qu'il existe tel
-  quel sur Docker Hub au moment de la démonstration.
+  d'initialisation (`base/deployment.yaml`) : confirmé le 22 septembre 2026,
+  le conteneur a démarré et synchronisé les artefacts.
 - **Le comportement de Cilium (CNI choisi en Terraform) avec les
-  `NetworkPolicy` standard** — documenté par défaut, pas observé (voir
+  `NetworkPolicy` standard** : la politique est appliquée sans erreur sur le
+  cluster, son effet de filtrage reste à vérifier par un test d'accès depuis
+  un autre espace de noms, planifié avant mise en service, sous la
+  responsabilité du responsable sécurité technique (voir
   `base/networkpolicy.yaml`).
-- **Les valeurs `requests`/`limits` et le seuil du HPA (60 %)** — posés sur
-  un raisonnement, pas mesurés sous charge réelle faute de cluster ; à
-  ajuster avec `kubectl top pod` après le premier déploiement.
+- **Les valeurs `requests`/`limits` et le seuil du HPA (60 %)** : posés sur
+  un raisonnement. Première mesure sur le cluster, hors charge, par
+  `kubectl top pod` : 487 et 510 Mio pour les deux réplicas, soit environ
+  80 pour cent de la limite de 640 Mio. La mesure sous charge réelle reste à
+  faire, et l'ajustement des valeurs avec elle.
 
 La séquence de commandes pour provisionner, déployer, vérifier et détruire
 est dans le `README.md` à la racine du dépôt.

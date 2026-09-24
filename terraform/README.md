@@ -170,8 +170,9 @@ créés, puis destruction complète le 19 — coût mesuré sur la facturation, 
 
 **Ouverts, à confirmer à la première séance de tournage** :
 
-- Les workflows `build-images.yml` et `deploy.yml`, pas encore exécutés : ils attendent la
-  première publication d'image au registre.
+- Le workflow `deploy.yml`, pas encore exécuté : le déploiement du 22 septembre 2026 a été
+  fait par `scripts/deploiement.py`, qui applique les mêmes manifestes. `build-images.yml`, lui,
+  a publié les trois images au registre ce jour-là.
 - Le déclenchement automatique de bout en bout entre les deux dépôts.
 - L'instance Airflow, créée à la demande (voir `airflow_active` ci-dessus).
 
@@ -198,9 +199,12 @@ UTC, au 19 septembre, 14 h 37 UTC). Projection en continu sur 730 heures.
 | Nœud DEV1-M (3 vCPU, 4 Go) | 0,020196 EUR (API) | 0,73 EUR | 14,74 EUR par nœud |
 | IPv4 du nœud | 0,005 EUR | 0,18 EUR | 3,65 EUR par nœud |
 | SSD local 40 Go du nœud | 0,00216 EUR (tiré de la facture) | 0,08 EUR | 1,58 EUR par nœud |
-| Registre (vide) | 0 EUR | 0,00 EUR | ≈ 0 EUR |
+| Registre, vide au relevé du 19 septembre 2026 | 0 EUR | 0,00 EUR | ≈ 0 EUR |
 | Buckets (artefacts, état Terraform) | 0,000286 EUR (tiré de la facture) | 0,01 EUR | ≤ 0,21 EUR |
 | **Total** | **0,0277 EUR** | **1,00 EUR** | **20,18 EUR avec 1 nœud, 40,15 EUR avec 2** |
+
+Le registre porte trois images depuis le 22 septembre 2026 : son stockage n'est donc plus nul,
+et ce poste sera à relever de nouveau à la prochaine facturation.
 
 Le SSD local du nœud est facturé à part : le catalogue le présentait comme
 inclus dans l'instance, la facture le montre en ligne distincte.

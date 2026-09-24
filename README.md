@@ -72,11 +72,12 @@ exécutions rouges, trois vertes. La première a échoué au lint — huit erreu
 vérification locale ne voyait pas, puisqu'elle ne lançait que `pytest`. La deuxième a
 échoué aux tests, sur une erreur de configuration. Chaque échec a été corrigé en avant,
 sans contournement ni désactivation de contrôle ; les trois dernières exécutions sont
-vertes, lint et suite complète, la dernière sur 834 tests passés et 4 ignorés en Python
+vertes, lint et suite complète, la dernière sur 909 tests passés et 1 ignoré en Python
 3.11.
 
-`build-images.yml` et `deploy.yml` n'ont pas encore été exécutés : ils attendent la
-première publication d'image, à la séance de tournage.
+`build-images.yml` a été exécuté le 22 septembre 2026 : les trois images sont publiées au
+registre Scaleway sous l'empreinte `1acab97`. `deploy.yml` reste à exécuter : le déploiement du
+22 septembre a été fait par `scripts/deploiement.py`, qui applique les mêmes manifestes.
 
 `edumatch-airflow` est construit depuis `edumatch-ia/docker/Dockerfile.airflow`.
 L'image n'embarque **ni machine virtuelle Java ni extra `[spark]`** : les
@@ -153,7 +154,7 @@ journaux).
 | `SCW_SECRET_KEY` | `build-images.yml` (connexion au registre) | Clé secrète Scaleway | Console Scaleway → icône du compte → Identifiants API (API Keys) → Générer une nouvelle clé API. La clé secrète n'est affichée qu'une seule fois : la copier immédiatement dans ce secret. |
 | `SCW_ACCESS_KEY` | réservé pour l'étape infrastructure (Terraform) | Clé d'accès Scaleway | Même écran que ci-dessus, affichée à côté de la clé secrète. Non utilisée par les workflows d'aujourd'hui, mais à créer maintenant : c'est la même paire de clés qui servira à Terraform. |
 | `SCW_DEFAULT_PROJECT_ID` | réservé pour l'étape infrastructure | Identifiant du projet Scaleway | Console Scaleway → sélecteur de projet en haut de l'écran → Paramètres du projet → Project ID. |
-| `SCW_KUBECONFIG_B64` | `deploy.yml` | Fichier de connexion au cluster Kapsule, encodé en base64 | Une fois le cluster de démonstration créé (étape infrastructure) : `scw k8s kubeconfig get <cluster-id> region=fr-par > kubeconfig.yaml`, puis `base64 -w0 kubeconfig.yaml` (Linux/macOS) ou `[Convert]::ToBase64String([IO.File]::ReadAllBytes("kubeconfig.yaml"))` (PowerShell), et coller le résultat tel quel. N'existe pas encore aujourd'hui : `deploy.yml` s'arrête proprement tant que ce secret et les manifestes ne sont pas prêts. |
+| `SCW_KUBECONFIG_B64` | `deploy.yml` | Fichier de connexion au cluster Kapsule, encodé en base64 | Une fois le cluster de démonstration créé (étape infrastructure) : `scw k8s kubeconfig get <cluster-id> region=fr-par > kubeconfig.yaml`, puis `base64 -w0 kubeconfig.yaml` (Linux/macOS) ou `[Convert]::ToBase64String([IO.File]::ReadAllBytes("kubeconfig.yaml"))` (PowerShell), et coller le résultat tel quel. Ce secret n'est pas créé à ce jour : `deploy.yml` s'arrête proprement sans lui, et le déploiement du 22 septembre 2026 a été fait par `scripts/deploiement.py`, qui lit le kubeconfig installé localement. Sa création est planifiée avant l'exécution de `deploy.yml`. |
 
 ### Variables (non sensibles)
 
@@ -165,10 +166,9 @@ journaux).
 
 La séquence d'infrastructure a été exécutée une première fois les 18 et 19 septembre 2026 :
 `terraform apply`, cluster Kapsule `Ready` en v1.36.4, secrets Kubernetes créés, puis
-destruction complète le 19 — coût mesuré sur la facturation, 1,00 €. Les deux workflows
-`build-images.yml` et `deploy.yml`, eux, n'ont pas encore été exécutés : ils attendent la
-première publication d'image. Les deux points suivants sont donc écrits d'après la
-documentation publique de Scaleway et de GitHub, et se confirmeront à cette occasion :
+destruction complète le 19 — coût mesuré sur la facturation, 1,00 €. `build-images.yml` a publié les trois images le 22 septembre 2026 ; `deploy.yml` reste à
+exécuter, le déploiement ayant été fait par `scripts/deploiement.py`. Les deux points suivants
+restent écrits d'après la documentation publique de Scaleway et de GitHub :
 
 - **La connexion au registre** (`docker/login-action` dans `build-images.yml`)
   utilise la convention `utilisateur = nologin`, `mot de passe = clé secrète`.
@@ -207,11 +207,14 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
    `k8s/base/`. `deploy.yml` est réellement exécutable dès que le cluster
    existe et que les secrets Kubernetes (`k8s/secret.example.yaml`) ont été
    créés à la main.
-3. ~~Monitoring (Prometheus, Alertmanager, Grafana, SLO p95 `/matching`
-   sous 300 ms, alertes actionnables)~~ — fait, voir `monitoring/`.
-   L'instrumentation de l'API est en place côté `edumatch-ia` (`/metrics`,
-   deux métriques métier). Reste à appliquer les manifestes de supervision
-   sur un cluster, à la première séance de tournage.
+3. ~~Monitoring (Prometheus, Alertmanager, Grafana, alertes actionnables)~~ :
+   écrit, voir `monitoring/`. L'instrumentation de l'API est en place côté
+   `edumatch-ia` (`/metrics`, deux métriques métier). Le SLO de latence est
+   **déclaré** à p95 sous 300 ms, et il n'est **pas tenu** : le banc
+   d'edumatch-ia mesure 844 ms sur le plus gros département (voir
+   `monitoring/slo.md`). L'application des manifestes de supervision sur le
+   cluster est planifiée avant mise en service, sous la responsabilité du
+   responsable sécurité technique.
 4. ~~Instance dédiée à Airflow (ADR 0019) : `terraform/airflow.tf`,
    `terraform/cloud-init/airflow.yaml`, image `edumatch-airflow` dans
    `build-images.yml`~~ — fait, voir `terraform/README.md`, section
@@ -254,9 +257,10 @@ ou dépanner une étape précise.
 
 Exécutée une première fois les 18 et 19 septembre 2026, jusqu'à la création des secrets
 Kubernetes : cinq ressources créées, cluster Kapsule `Ready` en v1.36.4, puis destruction
-complète le 19 pour un coût mesuré de 1,00 €. Les étapes de déploiement des manifestes
-applicatifs et de la supervision n'ont pas encore été jouées : elles attendent la première
-image publiée au registre. La séquence est à exécuter dans cet ordre exact, en lisant
+complète le 19 pour un coût mesuré de 1,00 €. Les manifestes applicatifs de `k8s/base/` ont été
+appliqués sur le cluster le 22 septembre 2026, avec l'image `1acab97`. Le déploiement de la
+supervision est planifié avant mise en service, sous la responsabilité du responsable sécurité
+technique. La séquence est à exécuter dans cet ordre exact, en lisant
 chaque sortie avant de continuer (jamais un `plan`/`apply` enchaînés sans
 relecture).
 
