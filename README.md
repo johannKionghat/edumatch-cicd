@@ -212,9 +212,12 @@ dépôt → sélectionner le workflow → **Run workflow** → renseigner la ré
    `edumatch-ia` (`/metrics`, deux métriques métier). Le SLO de latence est
    **déclaré** à p95 sous 300 ms, et il n'est **pas tenu** : le banc
    d'edumatch-ia mesure 844 ms sur le plus gros département (voir
-   `monitoring/slo.md`). L'application des manifestes de supervision sur le
-   cluster est planifiée avant mise en service, sous la responsabilité du
-   responsable sécurité technique.
+   `monitoring/slo.md`). Les manifestes de supervision ont été appliqués sur
+   le cluster le 25 septembre 2026 : Prometheus, Alertmanager et Grafana en
+   `1/1 Running`, les deux réplicas d'`edumatch-serve` découverts et en
+   `health: up`, et les cinq règles d'alerte chargées dans le groupe
+   `edumatch-serve.symptomes`. Alertmanager n'a aucun destinataire externe :
+   les alertes sont visibles, elles ne notifient personne.
 4. ~~Instance dédiée à Airflow (ADR 0019) : `terraform/airflow.tf`,
    `terraform/cloud-init/airflow.yaml`, image `edumatch-airflow` dans
    `build-images.yml`~~ — fait, voir `terraform/README.md`, section
@@ -258,9 +261,11 @@ ou dépanner une étape précise.
 Exécutée une première fois les 18 et 19 septembre 2026, jusqu'à la création des secrets
 Kubernetes : cinq ressources créées, cluster Kapsule `Ready` en v1.36.4, puis destruction
 complète le 19 pour un coût mesuré de 1,00 €. Les manifestes applicatifs de `k8s/base/` ont été
-appliqués sur le cluster le 22 septembre 2026, avec l'image `1acab97`. Le déploiement de la
-supervision est planifié avant mise en service, sous la responsabilité du responsable sécurité
-technique. La séquence est à exécuter dans cet ordre exact, en lisant
+appliqués sur le cluster le 22 septembre 2026, avec l'image `1acab97`. La supervision a été
+déployée le 25 septembre 2026 par `python scripts/deploiement.py monitoring` : trois pods
+`1/1 Running` dans l'espace de noms `monitoring`, la cible `edumatch-serve` découverte avec ses
+deux réplicas en `health: up`, et les cinq règles d'alerte chargées. La séquence est à exécuter
+dans cet ordre exact, en lisant
 chaque sortie avant de continuer (jamais un `plan`/`apply` enchaînés sans
 relecture).
 

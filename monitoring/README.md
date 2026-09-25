@@ -293,13 +293,24 @@ Détruire en même temps que le reste (voir README racine, section
 « Détruire ») : `kubectl delete namespace monitoring` avant
 `terraform destroy`, comme pour `edumatch`.
 
-## Ce qui n'a pas pu être vérifié ici
+## Ce qui est déployé, et ce qui reste à vérifier
 
-Le cluster existe et porte l'application depuis le 22 septembre 2026, mais les manifestes de
-ce dossier n'y ont pas encore été appliqués : leur déploiement est planifié avant mise en
-service, sous la responsabilité du responsable sécurité technique. La collecte réelle des
-métriques par un Prometheus déployé, et donc la vérification des alertes de bout en bout,
-en dépendent.
+Les manifestes de ce dossier ont été appliqués sur le cluster le 25 septembre 2026, par
+`python scripts/deploiement.py monitoring`. Observé à cette occasion :
+
+- Prometheus, Alertmanager et Grafana en `1/1 Running` dans l'espace de noms `monitoring`.
+- Prometheus découvre trois cibles, toutes en `health: up` : les deux réplicas
+  d'`edumatch-serve` et lui-même. La collecte réelle des métriques de l'API est donc établie,
+  et l'alerte `EdumatchInstrumentationAbsente` a de quoi se déclencher si la route disparaît.
+- Les cinq règles d'alerte sont chargées dans le groupe `edumatch-serve.symptomes`, toutes à
+  l'état `inactive` : `EdumatchLatenceP95Elevee`, `EdumatchTauxErreur5xxEleve`,
+  `EdumatchAucunReplicaDisponible`, `EdumatchHpaPlafondAtteintDurablement` et
+  `EdumatchInstrumentationAbsente`.
+
+Ce qui reste à vérifier : le déclenchement d'une alerte de bout en bout sous charge réelle, et
+le comportement du dispositif au pic. Alertmanager n'a toujours aucun destinataire externe,
+comme le dit `alertmanager/configmap.yaml` : les alertes sont visibles, elles ne notifient
+personne.
 
 - **Validation faite** : chaque fichier YAML de ce dossier (y compris le
   contenu imbriqué des `ConfigMap` — `prometheus.yml`, les règles d'alerte,
