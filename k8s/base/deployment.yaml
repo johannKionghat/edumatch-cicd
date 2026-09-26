@@ -147,17 +147,39 @@ spec:
           # pods qui saturent déjà le nœud ; sans `limits`, une
           # synchronisation anormalement longue ou volumineuse pourrait
           # affamer le conteneur principal qui démarre en même temps sur le
-          # même pod. Valeurs prudentes, non mesurées sous charge réelle
-          # (transfert de quelques dizaines à ~100 Mo, quelques secondes
-          # attendues) : à ajuster avec `kubectl top pod` après le premier
-          # déploiement si le démarrage est plus lent que prévu.
+          # même pod.
+          #
+          # La limite valait 128Mi, posée sur un transfert supposé de quelques
+          # dizaines de mégaoctets. Éprouvée le 26 septembre 2026 sous une
+          # montée en charge réelle, elle ne tenait pas : quand le HPA est
+          # passé de deux à six réplicas, les quatre pods ajoutés ont
+          # synchronisé les artefacts en même temps, et leur conteneur
+          # d'initialisation a été tué pour dépassement mémoire
+          # (`Init:OOMKilled`, code 137, cinq redémarrages, puis
+          # `Init:CrashLoopBackOff`). Résultat : le HPA affichait six réplicas
+          # et deux seulement servaient le trafic. La cause est le volume
+          # transféré, dominé par le précalcul SHAP d'environ 114 Mo, que
+          # `aws s3 sync` télécharge par morceaux concurrents.
+          #
+          # Le besoin exact n'est pas observable avec les outils en place : ni
+          # `kubectl top pod --containers` ni l'API de statistiques du kubelet
+          # ne rapportent un conteneur d'initialisation, qui a terminé avant
+          # leur première collecte. Ce qui est mesuré, ce sont les bornes : à
+          # 128Mi, quatre synchronisations simultanées échouent en OOMKilled ;
+          # à 512Mi, les six réplicas atteignent tous `1/1 Running`. La limite
+          # est donc fixée à 384Mi, au milieu de cet intervalle et au-dessus de
+          # la taille des artefacts transférés, et la réservation à 128Mi, pour
+          # que l'ordonnanceur compte ce transfert sans immobiliser un nœud qui
+          # n'alloue que 2 274 Mi. Vérifié le 26 septembre 2026 sous la même
+          # montée en charge : six réplicas prêts en 138 secondes, aucun
+          # conteneur tué.
           resources:
             requests:
               cpu: 50m
-              memory: 64Mi
+              memory: 128Mi
             limits:
               cpu: 250m
-              memory: 128Mi
+              memory: 384Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
