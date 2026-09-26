@@ -128,6 +128,12 @@ def executer(
         cwd=str(cwd) if cwd else None,
         input=entree,
         text=True,
+        # Encodage explicite : `text=True` seul retombe sur l'encodage local du poste, et
+        # cp1252 sous Windows refuse les caractères des séparateurs de commentaires des
+        # manifestes (`─`, U+2500). Le déploiement échouait alors sur un UnicodeEncodeError
+        # au moment d'écrire le manifeste sur l'entrée standard de kubectl, sans que le
+        # cluster ni le manifeste soient en cause. Constaté le 26 septembre 2026.
+        encoding="utf-8",
         shell=False,
     )
     if verifier_code and resultat.returncode != 0:
@@ -157,6 +163,7 @@ def capturer(
         list(commande),
         cwd=str(cwd) if cwd else None,
         text=True,
+        encoding="utf-8",  # même raison que dans `executer` ci-dessus
         shell=False,
         capture_output=True,
     )
