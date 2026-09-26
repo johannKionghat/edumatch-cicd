@@ -218,20 +218,55 @@ spec:
           # devrait rester proche de `requests`, avec de la marge (`limits`)
           # pour un pic de requêtes concurrentes sans expulsion immédiate.
           #
-          # Valeurs non mesurées sous charge réelle à ce jour (pas
-          # de cluster disponible) : ordre de grandeur posé à partir de
-          # l'empreinte connue d'un processus FastAPI + pandas + LightGBM +
-          # SHAP chargés en mémoire (bibliothèques importées, catalogue de
-          # 77 159 lignes, précalcul SHAP de 440 030 lignes) — à confirmer
-          # avec `kubectl top pod` après le premier déploiement et à ajuster
-          # si la mémoire réelle observée s'écarte de cette estimation.
+          # Les valeurs mémoire viennent d'une mesure, plus d'une estimation,
+          # et cette correction a une histoire. La réservation initiale de
+          # 320Mi était un ordre de grandeur posé sur l'empreinte connue d'un
+          # processus FastAPI, pandas, LightGBM et SHAP chargés en mémoire
+          # (catalogue de 77 159 lignes, précalcul SHAP de 440 030 lignes),
+          # faute de cluster pour mesurer. Le 22 septembre 2026,
+          # `kubectl top pod` a donné la vraie empreinte, hors charge : 487 et
+          # 510 Mio par réplica, soit une réservation sous-évaluée de moitié.
+          #
+          # La conséquence est arrivée le 26 septembre 2026. L'ordonnanceur
+          # entassait les pods d'après une réservation de 320Mi, alors que
+          # chacun consommait environ 500 Mio : le nœud est monté à 106 % de
+          # sa mémoire, le kubelet a expulsé les pods en boucle, et environ
+          # 90 pods sont morts en quatorze heures, dont un OOMKilled contre la
+          # limite de 640Mi. Le message du kubelet nommait la cause sans
+          # ambiguïté : « was using 514576Ki, request is 320Mi, has larger
+          # consumption of memory ».
+          #
+          # D'où ces valeurs : 512Mi réservés, la mesure arrondie au multiple
+          # supérieur, pour que l'ordonnanceur place les pods sur ce qu'ils
+          # consomment vraiment ; 768Mi de plafond, marge au-dessus des
+          # 510 Mio observés pour absorber l'index TF-IDF de l'assistant
+          # documentaire (environ 26 Mio au pic de construction, chargé au
+          # premier appel de /assistant) et un pic de requêtes concurrentes,
+          # sans repasser par un OOMKilled à la moindre pointe.
+          #
+          # Le calcul de capacité, avec les valeurs réelles du pool. Un nœud
+          # DEV1-M annonce 4 Go, mais n'alloue que 2 274 Mi aux pods (capacité
+          # 3 398 Mi, moins les réservations du kubelet et du système) ; le
+          # pool plafonne à deux nœuds (`terraform/variables.tf`,
+          # `pool_taille_max`), soit 4 548 Mi allouables. Au plafond du HPA,
+          # six réplicas réservent 6 × 512 = 3 072 Mi, la supervision 448 Mi
+          # et les composants de `kube-system` 370 Mi : 3 890 Mi au total, donc
+          # 658 Mi de marge, 86 % de l'allouable. Le conteneur
+          # d'initialisation ne s'y ajoute pas, l'ordonnanceur retenant le
+          # maximum entre ses 64Mi et les 512Mi du conteneur principal, pas
+          # leur somme. Contrainte qui en découle : les six réplicas ne
+          # tiennent qu'à trois par nœud, et le nœud qui porte aussi la
+          # supervision arrive à 95 % de son allouable. Élargir le pool ou
+          # abaisser le plafond du HPA sera nécessaire avant une charge réelle
+          # soutenue ; c'est planifié avant mise en service, sous la
+          # responsabilité du responsable sécurité technique.
           resources:
             requests:
               cpu: 200m
-              memory: 320Mi
+              memory: 512Mi
             limits:
               cpu: "1"
-              memory: 640Mi
+              memory: 768Mi
 
           # ─── Sondes — liveness et readiness ne répondent pas à la même
           # question (voir docstring de routes/health.py côté edumatch-ia).

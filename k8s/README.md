@@ -177,11 +177,17 @@ pour une correction rapide :
   un autre espace de noms, planifié avant mise en service, sous la
   responsabilité du responsable sécurité technique (voir
   `base/networkpolicy.yaml`).
-- **Les valeurs `requests`/`limits` et le seuil du HPA (60 %)** : posés sur
-  un raisonnement. Première mesure sur le cluster, hors charge, par
-  `kubectl top pod` : 487 et 510 Mio pour les deux réplicas, soit environ
-  80 pour cent de la limite de 640 Mio. La mesure sous charge réelle reste à
-  faire, et l'ajustement des valeurs avec elle.
+- **Les valeurs `requests`/`limits` mémoire** : mesurées, plus estimées.
+  `kubectl top pod` a donné 487 et 510 Mio par réplica hors charge le
+  22 septembre 2026, contre 320Mi réservés, une sous-évaluation de moitié. Le
+  26 septembre, l'ordonnanceur avait entassé les pods sur ce fondement : le
+  nœud est monté à 106 % de sa mémoire et le kubelet a expulsé environ 90
+  pods en quatorze heures, dont un OOMKilled contre la limite de 640Mi. La
+  réservation est passée à 512Mi et la limite à 768Mi le même jour ; depuis,
+  deux réplicas tournent, un par nœud, et les nœuds sont à 70 % et 53 %.
+- **Le seuil du HPA (60 % de CPU)** : posé sur un raisonnement, non éprouvé
+  sous charge. La mesure sous charge réelle reste à faire, et l'ajustement
+  des valeurs avec elle.
 
 La séquence de commandes pour provisionner, déployer, vérifier et détruire
 est dans le `README.md` à la racine du dépôt.

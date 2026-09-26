@@ -207,9 +207,15 @@ coût.
 | Grafana | 50m CPU / 128Mi | 200m CPU / 256Mi |
 | **Total** | **175m CPU / 448Mi** | **800m CPU / 896Mi** |
 
-À comparer aux réplicas `edumatch-serve` : 200m CPU / 320Mi de `requests`
-chacun, jusqu'à 6 au pic (`hpa.yaml`) — soit 1200m CPU / 1920Mi au maximum,
-répartis sur 2 nœuds `DEV1-M` (3 vCPU / 4 Go chacun, `terraform/variables.tf`).
+À comparer aux réplicas `edumatch-serve` : 200m CPU / 512Mi de `requests`
+chacun depuis le 26 septembre 2026, jusqu'à 6 au pic (`hpa.yaml`), soit
+1200m CPU / 3072Mi au maximum, répartis sur 2 nœuds `DEV1-M` du pool. Un tel
+nœud annonce 4 Go mais n'alloue que 2 274 Mi aux pods, soit 4 548 Mi pour le
+pool : les six réplicas, la supervision et `kube-system` réservent alors
+3 890 Mi, et le nœud qui porte la supervision atteint 95 % de son allouable.
+La réservation était de 320Mi jusqu'au 26 septembre, alors que chaque réplica
+consommait environ 500 Mio : le nœud est monté à 106 % de sa mémoire et le
+kubelet a expulsé les pods en boucle.
 Le monitoring (175m/448Mi de requêtes) reste une fraction raisonnable d'un
 seul nœud et ne devrait pas empêcher le HPA d'atteindre 6 réplicas. Le cluster
 existe depuis le 22 septembre 2026 et les réplicas y consomment 487 et 510 Mio
