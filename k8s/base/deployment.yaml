@@ -99,9 +99,12 @@ spec:
         # par le HPA) est exactement la dette que ce mécanisme documente
         # comme non souhaitable en production.
         #
-        # Image et version non vérifiées à ce jour (pas de registre
-        # interrogeable ici) : à reconfirmer avant le premier déploiement
-        # réel — un seul endroit à corriger si le tag n'existe pas.
+        # Tag vérifié le 22 septembre 2026, au premier déploiement des
+        # manifestes : l'image existe sur Docker Hub, le conteneur démarre et
+        # synchronise bien les artefacts depuis le stockage objet. Version
+        # épinglée, jamais `latest` : une image d'initialisation qui changerait
+        # sous les pieds du service ferait échouer le démarrage de tous les
+        # réplicas à la fois, y compris ceux que le HPA ajoute sous charge.
         - name: recuperer-artefacts
           image: amazon/aws-cli:2.17.62
           command:
